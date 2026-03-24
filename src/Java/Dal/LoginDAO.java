@@ -1,6 +1,6 @@
-package Java.dal;
+package Java.Dal;
 
-import Java.be.User;
+import Java.Be.User;
 
 public class LoginDAO {
 

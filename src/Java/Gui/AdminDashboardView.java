@@ -1,7 +1,7 @@
-package Java.gui;
+package Java.Gui;
 
-import Java.be.Event;
-import Java.be.User;
+import Java.Be.Event;
+import Java.Be.User;
 import Java.gui.controller.EventController;
 import Java.gui.controller.UserController;
 import javafx.geometry.Insets;

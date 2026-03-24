@@ -1,8 +1,8 @@
-package Java.bll;
+package Java.Bll;
 
-import Java.be.User;
-import Java.dal.LoginDAO;
-import Java.dal.UserDAO;
+import Java.Be.User;
+import Java.Dal.LoginDAO;
+import Java.Dal.UserDAO;
 
 import java.util.List;
 

@@ -1,4 +1,4 @@
-package Java.bll;
+package Java.Bll;
 
 public class BarCodeGenerator {
 }

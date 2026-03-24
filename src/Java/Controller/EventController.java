@@ -1,7 +1,7 @@
 package Java.gui.controller;
 
-import Java.be.Event;
-import Java.bll.EventManager;
+import Java.Be.Event;
+import Java.Bll.EventManager;
 
 import java.util.List;
 

@@ -1,7 +1,7 @@
 package Java.gui.controller;
 
-import Java.be.User;
-import Java.bll.UserManager;
+import Java.Be.User;
+import Java.Bll.UserManager;
 
 import java.util.List;
 

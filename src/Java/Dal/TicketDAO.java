@@ -1,6 +1,6 @@
-package Java.dal;
+package Java.Dal;
 
-import Java.be.Ticket;
+import Java.Be.Ticket;
 
 import java.util.ArrayList;
 import java.util.List;

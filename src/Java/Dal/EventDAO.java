@@ -1,6 +1,6 @@
-package Java.dal;
+package Java.Dal;
 
-import Java.be.Event;
+import Java.Be.Event;
 
 import java.util.ArrayList;
 import java.util.List;

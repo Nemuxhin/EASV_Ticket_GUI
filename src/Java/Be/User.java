@@ -1,4 +1,4 @@
-package Java.be;
+package Java.Be;
 
 public class User {
     private String name;

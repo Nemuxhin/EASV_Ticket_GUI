@@ -1,7 +1,7 @@
 package Java.gui.controller;
 
-import Java.be.Ticket;
-import Java.bll.TicketManager;
+import Java.Be.Ticket;
+import Java.Bll.TicketManager;
 
 import java.util.List;
 

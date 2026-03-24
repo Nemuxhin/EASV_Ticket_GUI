@@ -1,4 +1,4 @@
-package Java.be;
+package Java.Be;
 
 public class Event {
     private String title;

@@ -1,4 +1,4 @@
-package Java.be;
+package Java.Be;
 
 public class Ticket {
     private String ticketId;

@@ -1,4 +1,4 @@
-package Java.gui;
+package Java.Gui;
 
 import Java.gui.controller.LoginController;
 import javafx.geometry.Insets;

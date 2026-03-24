@@ -1,7 +1,7 @@
-package Java.bll;
+package Java.Bll;
 
-import Java.be.Ticket;
-import Java.dal.TicketDAO;
+import Java.Be.Ticket;
+import Java.Dal.TicketDAO;
 
 import java.util.List;
 

@@ -1,6 +1,6 @@
 package Java.gui.controller;
 
-import Java.bll.UserManager;
+import Java.Bll.UserManager;
 
 public class LoginController {
 
