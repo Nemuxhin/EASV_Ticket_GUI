@@ -1,16 +1,12 @@
-package Java.controller;
+package Java.gui.controller;
 
 import Java.bll.UserManager;
 
 public class LoginController {
 
-    private final UserManager userManager;
+    private final UserManager userManager = new UserManager();
 
-    public LoginController() {
-        this.userManager = new UserManager();
-    }
-
-    public boolean login(String username, String password, String role) {
+    public boolean isValid(String username, String password, String role) {
         return userManager.login(username, password, role);
     }
 }

@@ -10,7 +10,7 @@ public class EASVTicketsApp extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-        MainView mainView = new MainView(primaryStage);
+        MainView mainView = new MainView();
 
         Scene scene = new Scene(mainView.getRoot(), 1200, 800);
 

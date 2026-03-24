@@ -4,7 +4,6 @@ import Java.be.User;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class UserDAO {
 
@@ -26,9 +25,15 @@ public class UserDAO {
     }
 
     public List<User> getUsersByRole(String role) {
-        return USERS.stream()
-                .filter(user -> user.getRole().equalsIgnoreCase(role))
-                .collect(Collectors.toList());
+        List<User> result = new ArrayList<>();
+
+        for (User user : USERS) {
+            if (user.getRole().equalsIgnoreCase(role)) {
+                result.add(user);
+            }
+        }
+
+        return result;
     }
 
     public void addUser(User user) {
@@ -37,5 +42,19 @@ public class UserDAO {
 
     public void deleteUser(User user) {
         USERS.remove(user);
+    }
+
+    public User findUser(String username, String password, String role) {
+        for (User user : USERS) {
+            boolean sameUsername = user.getUsername().equalsIgnoreCase(username);
+            boolean samePassword = user.getPassword().equals(password);
+            boolean sameRole = user.getRole().equalsIgnoreCase(role);
+
+            if (sameUsername && samePassword && sameRole) {
+                return user;
+            }
+        }
+
+        return null;
     }
 }

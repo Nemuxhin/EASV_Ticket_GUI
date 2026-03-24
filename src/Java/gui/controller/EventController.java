@@ -1,4 +1,4 @@
-package Java.controller;
+package Java.gui.controller;
 
 import Java.be.Event;
 import Java.bll.EventManager;
@@ -7,14 +7,10 @@ import java.util.List;
 
 public class EventController {
 
-    private final EventManager eventManager;
+    private final EventManager eventManager = new EventManager();
 
-    public EventController() {
-        this.eventManager = new EventManager();
-    }
-
-    public List<Event> getAllEvents() {
-        return eventManager.getAllEvents();
+    public List<Event> getEvents() {
+        return eventManager.getEvents();
     }
 
     public void createEvent(Event event) {
@@ -25,15 +21,7 @@ public class EventController {
         eventManager.deleteEvent(event);
     }
 
-    public void assignCoordinatorToEvent(Event event, String coordinatorName) {
-        eventManager.assignCoordinatorToEvent(event, coordinatorName);
-    }
-
-    public void addTicketOptionToEvent(Event event, Event.TicketOption option) {
-        eventManager.addTicketOptionToEvent(event, option);
-    }
-
-    public void removeTicketOptionFromEvent(Event event, String optionId) {
-        eventManager.removeTicketOptionFromEvent(event, optionId);
+    public void assignCoordinator(Event event, String coordinatorName) {
+        eventManager.assignCoordinator(event, coordinatorName);
     }
 }

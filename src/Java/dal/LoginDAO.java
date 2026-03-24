@@ -1,9 +1,13 @@
 package Java.dal;
 
+import Java.be.User;
+
 public class LoginDAO {
 
+    private final UserDAO userDAO = new UserDAO();
+
     public boolean validateLogin(String username, String password, String role) {
-        return username != null && !username.isBlank()
-                && password != null && !password.isBlank();
+        User user = userDAO.findUser(username, password, role);
+        return user != null;
     }
 }

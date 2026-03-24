@@ -7,13 +7,9 @@ import java.util.List;
 
 public class EventManager {
 
-    private final EventDAO eventDAO;
+    private final EventDAO eventDAO = new EventDAO();
 
-    public EventManager() {
-        this.eventDAO = new EventDAO();
-    }
-
-    public List<Event> getAllEvents() {
+    public List<Event> getEvents() {
         return eventDAO.getAllEvents();
     }
 
@@ -25,15 +21,7 @@ public class EventManager {
         eventDAO.deleteEvent(event);
     }
 
-    public void assignCoordinatorToEvent(Event event, String coordinatorName) {
-        eventDAO.assignCoordinatorToEvent(event, coordinatorName);
-    }
-
-    public void addTicketOptionToEvent(Event event, Event.TicketOption option) {
-        eventDAO.addTicketOptionToEvent(event, option);
-    }
-
-    public void removeTicketOptionFromEvent(Event event, String optionId) {
-        eventDAO.removeTicketOptionFromEvent(event, optionId);
+    public void assignCoordinator(Event event, String coordinatorName) {
+        eventDAO.assignCoordinator(event, coordinatorName);
     }
 }
