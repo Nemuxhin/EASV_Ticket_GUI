@@ -8,8 +8,10 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 public class EASVTicketsApp extends Application {
 
@@ -17,32 +19,55 @@ public class EASVTicketsApp extends Application {
     private Scene mainScene;
     private StackPane rootPane;
 
-    // Dummy data structure to hold event info for the GUI
-    private static class EventData {
-        String title, date, location, notes, price, status;
-        String[] coordinators;
-        public EventData(String t, String d, String l, String n, String p, String s, String[] c) {
-            title = t; date = d; location = l; notes = n; price = p; status = s; coordinators = c;
-        }
-    }
-
-    private List<EventData> eventsList;
+    // Shared event list: every event screen reads from this same source
+    private List<Event> eventsList;
 
     @Override
     public void start(Stage primaryStage) {
         window = primaryStage;
         window.setTitle("EASV Ticket Management System");
 
-        // Initialize dummy data
+        // Sample data used to render the first version of the UI
         eventsList = new ArrayList<>();
-        eventsList.add(new EventData("EASV Graduation Ceremony 2026", "20 Jun 2026 at 14:00", "EASV Campus, Esbjerg", "Annual graduation ceremony for EASV students", "Free", "Available", new String[]{"Event Coordinator 1", "Event Coordinator 2"}));
-        eventsList.add(new EventData("Tech Innovation Summit", "15 Jul 2026 at 09:00", "Innovation Hub, Esbjerg", "Annual technology and innovation conference", "150 DKK", "Selling Fast", new String[]{"Event Coordinator 3"}));
-        eventsList.add(new EventData("Danish Business Networking", "22 Aug 2026 at 18:00", "Copenhagen Convention Center", "Business networking event for professionals", "500 DKK", "Available", new String[]{"Event Coordinator 4", "Event Coordinator 5"}));
+        eventsList.add(new Event(
+                "EASV Graduation Ceremony 2026",
+                "20 Jun 2026 at 14:00",
+                "20 Jun 2026 at 16:00",
+                "EASV Campus, Esbjerg",
+                "Use the main hall entrance near the parking area.",
+                "Annual graduation ceremony for EASV students",
+                "Free",
+                "Available",
+                new String[]{"Event Coordinator 1", "Event Coordinator 2"}
+        ));
+        eventsList.add(new Event(
+                "Tech Innovation Summit",
+                "15 Jul 2026 at 09:00",
+                "",
+                "Innovation Hub, Esbjerg",
+                "",
+                "Annual technology and innovation conference",
+                "150 DKK",
+                "Selling Fast",
+                new String[]{"Event Coordinator 3"}
+        ));
+        eventsList.add(new Event(
+                "Danish Business Networking",
+                "22 Aug 2026 at 18:00",
+                "22 Aug 2026 at 21:00",
+                "Copenhagen Convention Center",
+                "Meet at the north lobby reception desk.",
+                "Business networking event for professionals",
+                "500 DKK",
+                "Available",
+                new String[]{"Event Coordinator 4", "Event Coordinator 5"}
+        ));
 
         rootPane = new StackPane();
         mainScene = new Scene(rootPane, 1200, 800);
         mainScene.getStylesheets().add(getClass().getResource("/css/easv-style.css").toExternalForm());
 
+        // The app starts from the portal selection screen
         showPortalSelection();
 
         window.setScene(mainScene);
@@ -52,6 +77,7 @@ public class EASVTicketsApp extends Application {
     // ==========================================
     // PORTAL & LOGIN
     // ==========================================
+    // First screen: user chooses which portal to enter
     private void showPortalSelection() {
         VBox layout = new VBox(30);
         layout.setAlignment(Pos.CENTER); layout.getStyleClass().add("main-bg");
@@ -70,6 +96,7 @@ public class EASVTicketsApp extends Application {
         rootPane.getChildren().setAll(layout);
     }
 
+    // Login is only visual here: it routes the user to the selected dashboard
     private void showLogin(String role) {
         VBox layout = new VBox(30);
         layout.setAlignment(Pos.CENTER); layout.getStyleClass().add("main-bg");
@@ -104,6 +131,7 @@ public class EASVTicketsApp extends Application {
     // ==========================================
     // DASHBOARDS (WITH SIDEBAR)
     // ==========================================
+    // Admin dashboard: left menu stays fixed, center changes by active tab
     private void showAdminDashboard(String activeTab) {
         BorderPane layout = new BorderPane(); layout.getStyleClass().add("main-bg");
         layout.setLeft(createSidebar("Admin", activeTab));
@@ -121,6 +149,7 @@ public class EASVTicketsApp extends Application {
         rootPane.getChildren().setAll(layout);
     }
 
+    // Coordinator dashboard uses the same idea, but with coordinator views
     private void showCoordinatorDashboard(String activeTab) {
         BorderPane layout = new BorderPane(); layout.getStyleClass().add("main-bg");
         layout.setLeft(createSidebar("Event Coordinator", activeTab));
@@ -134,6 +163,7 @@ public class EASVTicketsApp extends Application {
         rootPane.getChildren().setAll(layout);
     }
 
+    // Sidebar only builds the menu and connects buttons to screens
     private VBox createSidebar(String role, String activeItem) {
         VBox sidebar = new VBox(20);
         sidebar.getStyleClass().add("sidebar");
@@ -179,6 +209,7 @@ public class EASVTicketsApp extends Application {
     // ==========================================
     // ADMIN: COORDINATORS CONTENT
     // ==========================================
+    // This section is separate because it does not depend on eventsList
     private VBox createCoordinatorsContent() {
         VBox content = new VBox(20); content.setPadding(new Insets(30, 50, 30, 50));
 
@@ -232,7 +263,7 @@ public class EASVTicketsApp extends Application {
         rootPane.getChildren().setAll(layout);
     }
 
-    private void showBuyTicketScreen(EventData ev) {
+    private void showBuyTicketScreen(Event ev) {
         BorderPane layout = new BorderPane(); layout.getStyleClass().add("main-bg");
         layout.setTop(createCustomerTopBar("🏠 Back to Portal Selection", e -> showPortalSelection()));
 
@@ -243,20 +274,22 @@ public class EASVTicketsApp extends Application {
 
         VBox eventCard = new VBox(10); eventCard.getStyleClass().add("buy-ticket-card");
         HBox top = new HBox();
-        Label tLbl = new Label(ev.title); tLbl.getStyleClass().add("card-title-large");
-        Label sLbl = new Label(ev.status); sLbl.getStyleClass().add(ev.status.equals("Available") ? "status-avail" : "status-fast");
+        Label tLbl = new Label(ev.getTitle()); tLbl.getStyleClass().add("card-title-large");
+        Label sLbl = new Label(ev.getStatus()); sLbl.getStyleClass().add(getStatusStyle(ev.getStatus()));
         Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
         top.getChildren().addAll(tLbl, spacer, sLbl);
-        Label dLbl = new Label("🕒 " + ev.date); dLbl.getStyleClass().add("card-text");
-        Label lLbl = new Label("📍 " + ev.location); lLbl.getStyleClass().add("card-text");
-        Label nLbl = new Label(ev.notes); nLbl.getStyleClass().add("card-text"); nLbl.setPadding(new Insets(10,0,0,0));
-        eventCard.getChildren().addAll(top, dLbl, lLbl, new Separator(), nLbl);
+        Label startLbl = new Label("🕒 Starts: " + ev.getStartDateTime()); startLbl.getStyleClass().add("card-text");
+        Label locationLbl = new Label("📍 " + ev.getLocation()); locationLbl.getStyleClass().add("card-text");
+        Label notesLbl = new Label(ev.getNotes()); notesLbl.getStyleClass().add("card-text"); notesLbl.setPadding(new Insets(10,0,0,0));
+        eventCard.getChildren().addAll(top, startLbl);
+        addOptionalEventInfo(eventCard, ev);
+        eventCard.getChildren().addAll(locationLbl, new Separator(), notesLbl);
 
         VBox selectionCard = new VBox(20); selectionCard.getStyleClass().add("buy-ticket-card");
         Label typeTitle = new Label("Select Ticket Type"); typeTitle.getStyleClass().add("card-title");
 
         HBox typesBox = new HBox(15);
-        VBox type1 = createTicketTypeBox("Standard", ev.price, true);
+        VBox type1 = createTicketTypeBox("Standard", ev.getPrice(), true);
         VBox type2 = createTicketTypeBox("VIP", "225 DKK", false);
         VBox type3 = createTicketTypeBox("Student", "105 DKK", false);
         typesBox.getChildren().addAll(type1, type2, type3);
@@ -270,7 +303,7 @@ public class EASVTicketsApp extends Application {
 
         HBox totalBox = new HBox();
         Label totLbl = new Label("Total Price"); totLbl.getStyleClass().add("card-text");
-        Label priceLbl = new Label(ev.price); priceLbl.getStyleClass().add("price-text-large");
+        Label priceLbl = new Label(ev.getPrice()); priceLbl.getStyleClass().add("price-text-large");
         Region tSpacer = new Region(); HBox.setHgrow(tSpacer, Priority.ALWAYS);
         totalBox.getChildren().addAll(totLbl, tSpacer, priceLbl);
 
@@ -284,7 +317,6 @@ public class EASVTicketsApp extends Application {
         minusBtn.setOnAction(e -> { if (qty[0] > 1) { qty[0]--; qtyLbl.setText(String.valueOf(qty[0])); } });
 
         content.getChildren().addAll(pageTitle, eventCard, selectionCard);
-
 
         VBox centeringContainer = new VBox(content);
         centeringContainer.setAlignment(Pos.TOP_CENTER);
@@ -338,13 +370,10 @@ public class EASVTicketsApp extends Application {
         grid.setPrefWrapLength(1000);
 
         if (viewMode.equals("COORD_EVENTS")) {
-            Button createBtn = new Button("＋ Create Event");
-            createBtn.getStyleClass().add("primary-btn");
-            createBtn.setPrefWidth(1000);
-            content.getChildren().add(createBtn);
+            content.getChildren().add(createCreateEventButton(viewMode));
         }
 
-        for (EventData ev : eventsList) {
+        for (Event ev : eventsList) {
             grid.getChildren().add(buildDynamicCard(ev, viewMode));
         }
 
@@ -352,42 +381,262 @@ public class EASVTicketsApp extends Application {
         return content;
     }
 
-    private VBox buildDynamicCard(EventData ev, String viewMode) {
+    // ==========================================
+    // SAMU TASKS: EVENT CREATE / SHOW / DELETE
+    // ==========================================
+    private Button createCreateEventButton(String viewMode) {
+        Button createBtn = new Button("＋ Create Event");
+        createBtn.getStyleClass().add("primary-btn");
+        createBtn.setPrefWidth(1000);
+        createBtn.setOnAction(e -> showCreateEventDialog(viewMode));
+        return createBtn;
+    }
+
+    // (Samu) Create event dialog with required and optional fields
+    private void showCreateEventDialog(String viewMode) {
+        Dialog<Event> dialog = new Dialog<>();
+        dialog.setTitle("Create Event");
+        dialog.setHeaderText("Fill in the event details");
+
+        ButtonType saveButtonType = new ButtonType("Save Event", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        GridPane form = new GridPane();
+        form.setHgap(10);
+        form.setVgap(10);
+        form.setPadding(new Insets(20));
+
+        TextField titleField = new TextField();
+        TextField startDateTimeField = new TextField();
+        TextField endDateTimeField = new TextField();
+        TextField locationField = new TextField();
+        TextField locationGuidanceField = new TextField();
+        TextArea notesField = new TextArea();
+        notesField.setPrefRowCount(3);
+        notesField.setWrapText(true);
+        TextField priceField = new TextField();
+        ComboBox<String> statusBox = new ComboBox<>();
+        statusBox.getItems().addAll("Available", "Selling Fast", "Sold Out");
+        statusBox.setValue("Available");
+        TextField coordinatorsField = new TextField();
+
+        form.addRow(0, new Label("Title *"), titleField);
+        form.addRow(1, new Label("Start date/time *"), startDateTimeField);
+        form.addRow(2, new Label("End date/time"), endDateTimeField);
+        form.addRow(3, new Label("Location *"), locationField);
+        form.addRow(4, new Label("Location guidance"), locationGuidanceField);
+        form.addRow(5, new Label("Notes *"), notesField);
+        form.addRow(6, new Label("Price *"), priceField);
+        form.addRow(7, new Label("Status"), statusBox);
+        form.addRow(8, new Label("Coordinators"), coordinatorsField);
+
+        dialog.getDialogPane().setContent(form);
+
+        Button saveButton = (Button) dialog.getDialogPane().lookupButton(saveButtonType);
+        saveButton.addEventFilter(javafx.event.ActionEvent.ACTION, e -> {
+            String validationMessage = validateRequiredInput(
+                    titleField.getText(),
+                    startDateTimeField.getText(),
+                    locationField.getText(),
+                    notesField.getText(),
+                    priceField.getText()
+            );
+
+            if (!validationMessage.isEmpty()) {
+                e.consume();
+                showErrorMessage("Missing required input", validationMessage);
+            }
+        });
+
+        dialog.setResultConverter(buttonType -> {
+            if (buttonType == saveButtonType) {
+                return new Event(
+                        titleField.getText().trim(),
+                        startDateTimeField.getText().trim(),
+                        endDateTimeField.getText().trim(),
+                        locationField.getText().trim(),
+                        locationGuidanceField.getText().trim(),
+                        notesField.getText().trim(),
+                        priceField.getText().trim(),
+                        statusBox.getValue(),
+                        parseCoordinators(coordinatorsField.getText())
+                );
+            }
+            return null;
+        });
+
+        Optional<Event> result = dialog.showAndWait();
+        if (result.isPresent()) {
+            eventsList.add(result.get());
+            refreshView(viewMode);
+        }
+    }
+
+    // (Samu) Check only the required fields
+    private String validateRequiredInput(String title, String startDateTime, String location,
+                                         String notes, String price) {
+        StringBuilder message = new StringBuilder();
+
+        if (title == null || title.isBlank()) {
+            message.append("- Title is required.\n");
+        }
+        if (startDateTime == null || startDateTime.isBlank()) {
+            message.append("- Start date/time is required.\n");
+        }
+        if (location == null || location.isBlank()) {
+            message.append("- Location is required.\n");
+        }
+        if (notes == null || notes.isBlank()) {
+            message.append("- Notes are required.\n");
+        }
+        if (price == null || price.isBlank()) {
+            message.append("- Price is required.");
+        }
+
+        return message.toString().trim();
+    }
+
+    // (Samu) Convert the coordinators text into a simple array
+    private String[] parseCoordinators(String coordinatorsText) {
+        if (coordinatorsText == null || coordinatorsText.isBlank()) {
+            return new String[0];
+        }
+
+        String[] rawCoordinators = coordinatorsText.split(",");
+        List<String> cleanCoordinators = new ArrayList<>();
+
+        for (String coordinator : rawCoordinators) {
+            String cleanValue = coordinator.trim();
+            if (!cleanValue.isEmpty()) {
+                cleanCoordinators.add(cleanValue);
+            }
+        }
+
+        return cleanCoordinators.toArray(new String[0]);
+    }
+
+    // (Samu) Refresh the correct screen after add or delete
+    private void refreshView(String viewMode) {
+        if (viewMode.equals("ADMIN_EVENTS")) {
+            showAdminDashboard("Events");
+        } else if (viewMode.equals("COORD_EVENTS")) {
+            showCoordinatorDashboard("Events");
+        } else if (viewMode.equals("COORD_ACCESS")) {
+            showCoordinatorDashboard("Manage Access");
+        } else if (viewMode.equals("CUSTOMER")) {
+            showCustomerDashboard();
+        }
+    }
+
+    // (Samu) Ask for confirmation before deleting
+    private void confirmDeleteEvent(Event ev, String viewMode) {
+        Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmation.setTitle("Delete Event");
+        confirmation.setHeaderText("Delete \"" + ev.getTitle() + "\"?");
+        confirmation.setContentText("This event will be removed from every event overview.");
+
+        Optional<ButtonType> result = confirmation.showAndWait();
+        if (result.isPresent() && result.get() == ButtonType.OK) {
+            deleteEvent(ev, viewMode);
+        }
+    }
+
+    // (Samu) Delete from the shared list and show an error if it fails
+    private void deleteEvent(Event ev, String viewMode) {
+        boolean eventDeleted = eventsList.remove(ev);
+
+        if (eventDeleted) {
+            refreshView(viewMode);
+        } else {
+            showErrorMessage("Delete failed", "The selected event could not be deleted.");
+        }
+    }
+
+    // (Samu) Reuse the same delete button in admin event cards
+    private Button createDeleteEventButton(Event ev, String viewMode) {
+        Button delBtn = new Button("🗑 Delete Event");
+        delBtn.getStyleClass().add("danger-btn");
+        delBtn.setMaxWidth(Double.MAX_VALUE);
+        delBtn.setOnAction(e -> confirmDeleteEvent(ev, viewMode));
+        return delBtn;
+    }
+
+    private void showErrorMessage(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private void addOptionalEventInfo(VBox container, Event ev) {
+        if (ev.hasEndDateTime()) {
+            Label endLbl = new Label("🕓 Ends: " + ev.getEndDateTime());
+            endLbl.getStyleClass().add("card-text");
+            container.getChildren().add(endLbl);
+        }
+
+        if (ev.hasLocationGuidance()) {
+            Label guidanceLbl = new Label("🧭 Guidance: " + ev.getLocationGuidance());
+            guidanceLbl.getStyleClass().add("card-text");
+            container.getChildren().add(guidanceLbl);
+        }
+    }
+
+    private String getStatusStyle(String status) {
+        if (status.equals("Available")) {
+            return "status-avail";
+        }
+        return "status-fast";
+    }
+
+    private VBox buildDynamicCard(Event ev, String viewMode) {
         VBox card = new VBox(10); card.getStyleClass().add("event-card");
 
         HBox top = new HBox();
-        Label tLbl = new Label(ev.title); tLbl.getStyleClass().add("card-title");
-        Label sLbl = new Label(ev.status); sLbl.getStyleClass().add(ev.status.equals("Available") ? "status-avail" : "status-fast");
+        Label tLbl = new Label(ev.getTitle()); tLbl.getStyleClass().add("card-title");
+        Label sLbl = new Label(ev.getStatus()); sLbl.getStyleClass().add(getStatusStyle(ev.getStatus()));
         Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
         top.getChildren().addAll(tLbl, spacer, sLbl);
 
-        Label dLbl = new Label("🕒 " + ev.date); dLbl.getStyleClass().add("card-text");
-        Label lLbl = new Label("📍 " + ev.location); lLbl.getStyleClass().add("card-text");
+        Label startLbl = new Label("🕒 Starts: " + ev.getStartDateTime()); startLbl.getStyleClass().add("card-text");
+        Label locationLbl = new Label("📍 " + ev.getLocation()); locationLbl.getStyleClass().add("card-text");
         Label nHead = new Label("Notes"); nHead.getStyleClass().add("notes-head");
-        Label nLbl = new Label(ev.notes); nLbl.getStyleClass().add("card-text");
+        Label nLbl = new Label(ev.getNotes()); nLbl.getStyleClass().add("card-text");
 
-        card.getChildren().addAll(top, dLbl, lLbl, nHead, nLbl, new Separator());
+        card.getChildren().addAll(top, startLbl);
+        addOptionalEventInfo(card, ev);
+        card.getChildren().addAll(locationLbl, nHead, nLbl, new Separator());
 
         if (viewMode.equals("CUSTOMER")) {
-            Label pLbl = new Label(ev.price); pLbl.getStyleClass().add("price-text");
+            Label pLbl = new Label(ev.getPrice()); pLbl.getStyleClass().add("price-text");
             Button buyBtn = new Button("Buy Ticket"); buyBtn.getStyleClass().add("primary-btn"); buyBtn.setMaxWidth(Double.MAX_VALUE);
             buyBtn.setOnAction(e -> showBuyTicketScreen(ev));
             card.getChildren().addAll(pLbl, buyBtn);
-        } else if (viewMode.equals("ADMIN_EVENTS") || viewMode.equals("COORD_EVENTS")) {
-            Label pLbl = new Label(ev.price); pLbl.getStyleClass().add("price-text");
-            Button delBtn = new Button("🗑 Delete Event"); delBtn.getStyleClass().add("danger-btn"); delBtn.setMaxWidth(Double.MAX_VALUE);
-            card.getChildren().addAll(pLbl, delBtn);
+        } else if (viewMode.equals("ADMIN_EVENTS")) {
+            Label pLbl = new Label(ev.getPrice()); pLbl.getStyleClass().add("price-text");
+            card.getChildren().addAll(pLbl, createDeleteEventButton(ev, viewMode));
+        } else if (viewMode.equals("COORD_EVENTS")) {
+            Label pLbl = new Label(ev.getPrice()); pLbl.getStyleClass().add("price-text");
+            card.getChildren().add(pLbl);
         } else if (viewMode.equals("COORD_ACCESS")) {
-            Label asgnHead = new Label("Assigned Coordinators"); asgnHead.getStyleClass().add("notes-head");
+            Label asgnHead = new Label("Assigned Coordinators");
+            asgnHead.getStyleClass().add("notes-head");
+
             FlowPane pillBox = new FlowPane(5, 5);
-            for (String c : ev.coordinators) {
-                Label pill = new Label(c); pill.getStyleClass().add("coord-pill");
+            for (String c : ev.getCoordinators()) {
+                Label pill = new Label(c);
+                pill.getStyleClass().add("coord-pill");
                 pillBox.getChildren().add(pill);
             }
-            Button assignBtn = new Button("👥 Assign Access"); assignBtn.getStyleClass().add("primary-btn"); assignBtn.setMaxWidth(Double.MAX_VALUE);
-            Button delBtn = new Button("🗑 Delete Event"); delBtn.getStyleClass().add("danger-btn"); delBtn.setMaxWidth(Double.MAX_VALUE);
-            card.getChildren().addAll(asgnHead, pillBox, assignBtn, delBtn);
+
+            Button assignBtn = new Button("👥 Assign Access");
+            assignBtn.getStyleClass().add("primary-btn");
+            assignBtn.setMaxWidth(Double.MAX_VALUE);
+
+            card.getChildren().addAll(asgnHead, pillBox, assignBtn);
         }
+
         return card;
     }
 
