@@ -395,6 +395,7 @@ public class EASVTicketsApp extends Application {
     // (Samu) Create event dialog with required and optional fields
     private void showCreateEventDialog(String viewMode) {
         Dialog<Event> dialog = new Dialog<>();
+        dialog.initOwner(window);
         dialog.setTitle("Create Event");
         dialog.setHeaderText("Fill in the event details");
 
@@ -531,6 +532,7 @@ public class EASVTicketsApp extends Application {
     // (Samu) Ask for confirmation before deleting
     private void confirmDeleteEvent(Event ev, String viewMode) {
         Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
+        confirmation.initOwner(window);
         confirmation.setTitle("Delete Event");
         confirmation.setHeaderText("Delete \"" + ev.getTitle() + "\"?");
         confirmation.setContentText("This event will be removed from every event overview.");
@@ -563,6 +565,7 @@ public class EASVTicketsApp extends Application {
 
     private void showErrorMessage(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.initOwner(window);
         alert.setTitle(title);
         alert.setHeaderText(null);
         alert.setContentText(message);
@@ -666,3 +669,4 @@ public class EASVTicketsApp extends Application {
 
     public static void main(String[] args) { launch(args); }
 }
+
