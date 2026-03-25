@@ -1,8 +1,6 @@
-package Java;
+package Java.Be;
 
 public class Event {
-
-    // (Samu) This model keeps all event data in one simple place
     private final String title;
     private final String startDateTime;
     private final String endDateTime;
@@ -13,6 +11,7 @@ public class Event {
     private final String status;
     private final String[] coordinators;
 
+    // SAMU: This model keeps required and optional event data together.
     public Event(String title, String startDateTime, String endDateTime, String location,
                  String locationGuidance, String notes, String price, String status,
                  String[] coordinators) {
@@ -63,6 +62,7 @@ public class Event {
         return coordinators;
     }
 
+    // SAMU: Optional values are shown only when they exist.
     public boolean hasEndDateTime() {
         return endDateTime != null && !endDateTime.isBlank();
     }
