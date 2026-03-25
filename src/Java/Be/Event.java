@@ -8,13 +8,11 @@ public class Event {
     private final String locationGuidance;
     private final String notes;
     private final String price;
-    private final String status;
     private final String[] coordinators;
 
-    // SAMU: This model keeps required and optional event data together.
+    // SAMU: This model keeps the event data simple and focused.
     public Event(String title, String startDateTime, String endDateTime, String location,
-                 String locationGuidance, String notes, String price, String status,
-                 String[] coordinators) {
+                 String locationGuidance, String notes, String price, String[] coordinators) {
         this.title = title;
         this.startDateTime = startDateTime;
         this.endDateTime = endDateTime;
@@ -22,7 +20,6 @@ public class Event {
         this.locationGuidance = locationGuidance;
         this.notes = notes;
         this.price = price;
-        this.status = status;
         this.coordinators = coordinators == null ? new String[0] : coordinators;
     }
 
@@ -52,10 +49,6 @@ public class Event {
 
     public String getPrice() {
         return price;
-    }
-
-    public String getStatus() {
-        return status;
     }
 
     public String[] getCoordinators() {

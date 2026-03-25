@@ -7,32 +7,29 @@ import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.ComboBox;
-import javafx.scene.control.Dialog;
-import javafx.scene.control.GridPane;
-import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.Separator;
-import javafx.scene.control.TextArea;
-import javafx.scene.control.TextField;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.FlowPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
+import javafx.scene.control.*;
+import javafx.scene.layout.*;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
+import java.time.*;
+import java.time.format.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 public class EASVTicketsApp extends Application {
+    private static final String[][] AVAILABLE_COORDINATORS = {
+            {"Event Coordinator 1", "coordinator1@easv.dk"},
+            {"Event Coordinator 2", "coordinator2@easv.dk"},
+            {"Event Coordinator 3", "coordinator3@easv.dk"},
+            {"Event Coordinator 4", "coordinator4@easv.dk"},
+            {"Event Coordinator 5", "coordinator5@easv.dk"}
+    };
+
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy 'at' HH:mm", Locale.ENGLISH);
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+
     private final EventController eventController = new EventController();
     private final StackPane rootPane = new StackPane();
     private Stage window;
@@ -240,14 +237,7 @@ public class EASVTicketsApp extends Application {
         FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
         grid.setPrefWrapLength(1000);
 
-        String[][] coordinators = {
-                {"Sarah Jensen", "s.jensen@easv.dk"},
-                {"Mikkel Andersen", "m.andersen@easv.dk"},
-                {"Laura Nielsen", "l.nielsen@easv.dk"},
-                {"Peter Christiansen", "p.chris@easv.dk"}
-        };
-
-        for (String[] coordinator : coordinators) {
+        for (String[] coordinator : AVAILABLE_COORDINATORS) {
             VBox card = new VBox(10);
             card.getStyleClass().add("event-card");
 
@@ -309,23 +299,25 @@ public class EASVTicketsApp extends Application {
             buyButton.setOnAction(e -> showBuyTicket(event));
 
             card.getChildren().addAll(ViewFactory.createPriceLabel(event.getPrice()), buyButton);
-        } else if ("ADMIN_EVENTS".equals(viewMode) || "COORD_EVENTS".equals(viewMode)) {
+        } else if ("ADMIN_EVENTS".equals(viewMode)) {
             card.getChildren().addAll(
                     ViewFactory.createPriceLabel(event.getPrice()),
+                    createDeleteEventButton(event, viewMode)
+            );
+        } else if ("COORD_EVENTS".equals(viewMode)) {
+            card.getChildren().addAll(
+                    ViewFactory.createPriceLabel(event.getPrice()),
+                    createEditEventButton(event, viewMode),
                     createDeleteEventButton(event, viewMode)
             );
         } else if ("COORD_ACCESS".equals(viewMode)) {
             Label coordinatorTitle = new Label("Assigned Coordinators");
             coordinatorTitle.getStyleClass().add("notes-head");
 
-            Button assignButton = new Button("Assign Access");
-            assignButton.getStyleClass().add("primary-btn");
-            assignButton.setMaxWidth(Double.MAX_VALUE);
-
             card.getChildren().addAll(
                     coordinatorTitle,
                     ViewFactory.createCoordinatorPillBox(event.getCoordinators()),
-                    assignButton,
+                    createAssignAccessButton(event, viewMode),
                     createDeleteEventButton(event, viewMode)
             );
         }
@@ -352,12 +344,52 @@ public class EASVTicketsApp extends Application {
         return createButton;
     }
 
-    // SAMU: The form collects required and optional event fields.
+    // SAMU: Coordinator can edit an event if something was typed wrong.
+    private Button createEditEventButton(Event event, String viewMode) {
+        Button editButton = new Button("Edit Event");
+        editButton.getStyleClass().add("secondary-btn");
+        editButton.setMaxWidth(Double.MAX_VALUE);
+        editButton.setOnAction(e -> showEditEventDialog(event, viewMode));
+        return editButton;
+    }
+
+    // SAMU: Access is assigned from available coordinator options.
+    private Button createAssignAccessButton(Event event, String viewMode) {
+        Button assignButton = new Button("Assign Access");
+        assignButton.getStyleClass().add("primary-btn");
+        assignButton.setMaxWidth(Double.MAX_VALUE);
+        assignButton.setOnAction(e -> showAssignAccessDialog(event, viewMode));
+        return assignButton;
+    }
+
+    // SAMU: Create uses the shared dialog so the form stays simple in one place.
     private void showCreateEventDialog(String viewMode) {
+        Optional<Event> result = showEventDialog("Create Event", null);
+        if (result.isPresent()) {
+            eventController.addEvent(result.get());
+            refreshView(viewMode);
+        }
+    }
+
+    // SAMU: Edit reuses the same form and only replaces the selected event.
+    private void showEditEventDialog(Event currentEvent, String viewMode) {
+        Optional<Event> result = showEventDialog("Edit Event", currentEvent);
+        if (result.isPresent()) {
+            boolean updated = eventController.updateEvent(currentEvent, result.get());
+            if (updated) {
+                refreshView(viewMode);
+            } else {
+                showErrorMessage("Update failed", "The selected event could not be updated.");
+            }
+        }
+    }
+
+    // SAMU: Date and time now use simple choices instead of free text.
+    private Optional<Event> showEventDialog(String dialogTitle, Event currentEvent) {
         Dialog<Event> dialog = new Dialog<>();
         dialog.initOwner(window);
         dialog.initModality(Modality.WINDOW_MODAL);
-        dialog.setTitle("Create Event");
+        dialog.setTitle(dialogTitle);
         dialog.setHeaderText("Fill in the event details");
 
         ButtonType saveButtonType = new ButtonType("Save Event", ButtonBar.ButtonData.OK_DONE);
@@ -369,28 +401,44 @@ public class EASVTicketsApp extends Application {
         form.setPadding(new Insets(20));
 
         TextField titleField = new TextField();
-        TextField startDateTimeField = new TextField();
-        TextField endDateTimeField = new TextField();
+        DatePicker startDatePicker = new DatePicker();
+        ComboBox<String> startTimeBox = createTimeBox();
+        DatePicker endDatePicker = new DatePicker();
+        ComboBox<String> endTimeBox = createTimeBox();
         TextField locationField = new TextField();
         TextField locationGuidanceField = new TextField();
         TextArea notesField = new TextArea();
         notesField.setWrapText(true);
         notesField.setPrefRowCount(3);
         TextField priceField = new TextField();
-        ComboBox<String> statusBox = new ComboBox<>();
-        statusBox.getItems().addAll("Available", "Selling Fast", "Sold Out");
-        statusBox.setValue("Available");
-        TextField coordinatorsField = new TextField();
+        CheckBox[] coordinatorBoxes = createCoordinatorBoxes(currentEvent == null ? new String[0] : currentEvent.getCoordinators());
+
+        FlowPane coordinatorSelection = new FlowPane(10, 10);
+        for (CheckBox coordinatorBox : coordinatorBoxes) {
+            coordinatorSelection.getChildren().add(coordinatorBox);
+        }
+
+        HBox startDateTimeBox = new HBox(10, startDatePicker, startTimeBox);
+        HBox endDateTimeBox = new HBox(10, endDatePicker, endTimeBox);
 
         form.addRow(0, new Label("Title *"), titleField);
-        form.addRow(1, new Label("Start date/time *"), startDateTimeField);
-        form.addRow(2, new Label("End date/time"), endDateTimeField);
+        form.addRow(1, new Label("Start date/time *"), startDateTimeBox);
+        form.addRow(2, new Label("End date/time"), endDateTimeBox);
         form.addRow(3, new Label("Location *"), locationField);
         form.addRow(4, new Label("Location guidance"), locationGuidanceField);
         form.addRow(5, new Label("Notes *"), notesField);
         form.addRow(6, new Label("Price *"), priceField);
-        form.addRow(7, new Label("Status"), statusBox);
-        form.addRow(8, new Label("Coordinators"), coordinatorsField);
+        form.addRow(7, new Label("Coordinators"), coordinatorSelection);
+
+        if (currentEvent != null) {
+            titleField.setText(currentEvent.getTitle());
+            setDateTimeFields(currentEvent.getStartDateTime(), startDatePicker, startTimeBox);
+            setDateTimeFields(currentEvent.getEndDateTime(), endDatePicker, endTimeBox);
+            locationField.setText(currentEvent.getLocation());
+            locationGuidanceField.setText(currentEvent.getLocationGuidance());
+            notesField.setText(currentEvent.getNotes());
+            priceField.setText(currentEvent.getPrice());
+        }
 
         dialog.getDialogPane().setContent(form);
 
@@ -398,7 +446,10 @@ public class EASVTicketsApp extends Application {
         saveButton.addEventFilter(javafx.event.ActionEvent.ACTION, e -> {
             String validationMessage = validateRequiredInput(
                     titleField.getText(),
-                    startDateTimeField.getText(),
+                    startDatePicker.getValue(),
+                    startTimeBox.getValue(),
+                    endDatePicker.getValue(),
+                    endTimeBox.getValue(),
                     locationField.getText(),
                     notesField.getText(),
                     priceField.getText()
@@ -414,35 +465,81 @@ public class EASVTicketsApp extends Application {
             if (buttonType == saveButtonType) {
                 return new Event(
                         titleField.getText().trim(),
-                        startDateTimeField.getText().trim(),
-                        endDateTimeField.getText().trim(),
+                        buildDateTimeValue(startDatePicker.getValue(), startTimeBox.getValue()),
+                        buildDateTimeValue(endDatePicker.getValue(), endTimeBox.getValue()),
                         locationField.getText().trim(),
                         locationGuidanceField.getText().trim(),
                         notesField.getText().trim(),
                         priceField.getText().trim(),
-                        statusBox.getValue(),
-                        parseCoordinators(coordinatorsField.getText())
+                        collectSelectedCoordinators(coordinatorBoxes)
                 );
             }
             return null;
         });
 
-        Optional<Event> result = dialog.showAndWait();
+        return dialog.showAndWait();
+    }
+
+    // SAMU: Access can be updated from real coordinator options.
+    private void showAssignAccessDialog(Event currentEvent, String viewMode) {
+        Dialog<String[]> dialog = new Dialog<>();
+        dialog.initOwner(window);
+        dialog.initModality(Modality.WINDOW_MODAL);
+        dialog.setTitle("Assign Access");
+        dialog.setHeaderText("Select event coordinators");
+
+        ButtonType saveButtonType = new ButtonType("Save Access", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        CheckBox[] coordinatorBoxes = createCoordinatorBoxes(currentEvent.getCoordinators());
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(20));
+
+        for (CheckBox coordinatorBox : coordinatorBoxes) {
+            content.getChildren().add(coordinatorBox);
+        }
+
+        dialog.getDialogPane().setContent(content);
+        dialog.setResultConverter(buttonType -> buttonType == saveButtonType ? collectSelectedCoordinators(coordinatorBoxes) : null);
+
+        Optional<String[]> result = dialog.showAndWait();
         if (result.isPresent()) {
-            eventController.addEvent(result.get());
-            refreshView(viewMode);
+            Event updatedEvent = new Event(
+                    currentEvent.getTitle(),
+                    currentEvent.getStartDateTime(),
+                    currentEvent.getEndDateTime(),
+                    currentEvent.getLocation(),
+                    currentEvent.getLocationGuidance(),
+                    currentEvent.getNotes(),
+                    currentEvent.getPrice(),
+                    result.get()
+            );
+
+            boolean updated = eventController.updateEvent(currentEvent, updatedEvent);
+            if (updated) {
+                refreshView(viewMode);
+            } else {
+                showErrorMessage("Update failed", "The selected access could not be updated.");
+            }
         }
     }
 
-    // SAMU: Only required fields are checked here to keep the form logic simple.
-    private String validateRequiredInput(String title, String startDateTime, String location, String notes, String price) {
+    // SAMU: Only required fields and simple date-time rules are checked here.
+    private String validateRequiredInput(String title, LocalDate startDate, String startTime,
+                                         LocalDate endDate, String endTime, String location,
+                                         String notes, String price) {
         StringBuilder message = new StringBuilder();
 
         if (title == null || title.isBlank()) {
             message.append("- Title is required.\n");
         }
-        if (startDateTime == null || startDateTime.isBlank()) {
-            message.append("- Start date/time is required.\n");
+        if (startDate == null || startTime == null || startTime.isBlank()) {
+            message.append("- Start date and time are required.\n");
+        }
+        boolean hasEndDate = endDate != null;
+        boolean hasEndTime = endTime != null && !endTime.isBlank();
+        if (hasEndDate != hasEndTime) {
+            message.append("- End date and time must both be selected or both be empty.\n");
         }
         if (location == null || location.isBlank()) {
             message.append("- Location is required.\n");
@@ -457,26 +554,76 @@ public class EASVTicketsApp extends Application {
         return message.toString().trim();
     }
 
-    // SAMU: Coordinators are entered as a simple comma-separated list.
-    private String[] parseCoordinators(String coordinatorsText) {
-        if (coordinatorsText == null || coordinatorsText.isBlank()) {
-            return new String[0];
+    private ComboBox<String> createTimeBox() {
+        ComboBox<String> timeBox = new ComboBox<>();
+        timeBox.setPrefWidth(120);
+
+        for (int hour = 0; hour < 24; hour++) {
+            timeBox.getItems().add(String.format("%02d:00", hour));
+            timeBox.getItems().add(String.format("%02d:30", hour));
         }
 
-        String[] rawCoordinators = coordinatorsText.split(",");
-        List<String> cleanCoordinators = new ArrayList<>();
+        return timeBox;
+    }
 
-        for (String coordinator : rawCoordinators) {
-            String cleanValue = coordinator.trim();
-            if (!cleanValue.isEmpty()) {
-                cleanCoordinators.add(cleanValue);
+    private CheckBox[] createCoordinatorBoxes(String[] selectedCoordinators) {
+        CheckBox[] coordinatorBoxes = new CheckBox[AVAILABLE_COORDINATORS.length];
+
+        for (int i = 0; i < AVAILABLE_COORDINATORS.length; i++) {
+            String coordinatorName = AVAILABLE_COORDINATORS[i][0];
+            CheckBox coordinatorBox = new CheckBox(coordinatorName);
+            coordinatorBox.setSelected(containsCoordinator(selectedCoordinators, coordinatorName));
+            coordinatorBoxes[i] = coordinatorBox;
+        }
+
+        return coordinatorBoxes;
+    }
+
+    private boolean containsCoordinator(String[] coordinators, String coordinatorName) {
+        for (String coordinator : coordinators) {
+            if (coordinator.equals(coordinatorName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String[] collectSelectedCoordinators(CheckBox[] coordinatorBoxes) {
+        List<String> selectedCoordinators = new ArrayList<>();
+
+        for (CheckBox coordinatorBox : coordinatorBoxes) {
+            if (coordinatorBox.isSelected()) {
+                selectedCoordinators.add(coordinatorBox.getText());
             }
         }
 
-        return cleanCoordinators.toArray(new String[0]);
+        return selectedCoordinators.toArray(new String[0]);
     }
 
-    // SAMU: The overview is rebuilt after create or delete so the UI stays in sync.
+    private String buildDateTimeValue(LocalDate date, String time) {
+        if (date == null || time == null || time.isBlank()) {
+            return "";
+        }
+
+        LocalTime selectedTime = LocalTime.parse(time, TIME_FORMATTER);
+        LocalDateTime dateTime = LocalDateTime.of(date, selectedTime);
+        return DATE_TIME_FORMATTER.format(dateTime);
+    }
+
+    private void setDateTimeFields(String dateTimeValue, DatePicker datePicker, ComboBox<String> timeBox) {
+        if (dateTimeValue == null || dateTimeValue.isBlank()) {
+            return;
+        }
+
+        try {
+            LocalDateTime parsedDateTime = LocalDateTime.parse(dateTimeValue, DATE_TIME_FORMATTER);
+            datePicker.setValue(parsedDateTime.toLocalDate());
+            timeBox.setValue(parsedDateTime.toLocalTime().format(TIME_FORMATTER));
+        } catch (DateTimeParseException ignored) {
+        }
+    }
+
+    // SAMU: The overview is rebuilt after create, edit, assign, or delete.
     private void refreshView(String viewMode) {
         if ("ADMIN_EVENTS".equals(viewMode)) {
             showAdminDashboard("Events");

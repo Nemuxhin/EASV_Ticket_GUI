@@ -15,6 +15,10 @@ public class EventController {
         eventManager.addEvent(event);
     }
 
+    public boolean updateEvent(Event currentEvent, Event updatedEvent) {
+        return eventManager.updateEvent(currentEvent, updatedEvent);
+    }
+
     public boolean deleteEvent(Event event) {
         return eventManager.deleteEvent(event);
     }

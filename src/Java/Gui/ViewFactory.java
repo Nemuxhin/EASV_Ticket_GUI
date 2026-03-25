@@ -6,9 +6,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Separator;
 import javafx.scene.layout.FlowPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 public class ViewFactory {
@@ -67,18 +64,9 @@ public class ViewFactory {
         VBox card = new VBox(10);
         card.getStyleClass().add("event-card");
 
-        HBox top = new HBox();
         Label titleLabel = new Label(event.getTitle());
         titleLabel.getStyleClass().add("card-title");
-
-        Label statusLabel = new Label(event.getStatus());
-        statusLabel.getStyleClass().add(getStatusStyle(event.getStatus()));
-
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        top.getChildren().addAll(titleLabel, spacer, statusLabel);
-
-        card.getChildren().add(top);
+        card.getChildren().add(titleLabel);
         card.getChildren().add(createCardText("Start date/time: " + event.getStartDateTime()));
 
         // SAMU: Optional values are shown only when they are filled in.
@@ -118,6 +106,12 @@ public class ViewFactory {
     public static FlowPane createCoordinatorPillBox(String[] coordinators) {
         FlowPane pillBox = new FlowPane(5, 5);
 
+        if (coordinators.length == 0) {
+            Label emptyLabel = createCardText("No coordinators assigned");
+            pillBox.getChildren().add(emptyLabel);
+            return pillBox;
+        }
+
         for (String coordinator : coordinators) {
             Label pill = new Label(coordinator);
             pill.getStyleClass().add("coord-pill");
@@ -131,12 +125,5 @@ public class ViewFactory {
         Label label = new Label(text);
         label.getStyleClass().add("card-text");
         return label;
-    }
-
-    private static String getStatusStyle(String status) {
-        if ("Available".equals(status)) {
-            return "status-avail";
-        }
-        return "status-fast";
     }
 }

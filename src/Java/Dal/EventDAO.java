@@ -21,6 +21,16 @@ public class EventDAO {
         events.add(event);
     }
 
+    public boolean updateEvent(Event currentEvent, Event updatedEvent) {
+        int index = events.indexOf(currentEvent);
+        if (index == -1) {
+            return false;
+        }
+
+        events.set(index, updatedEvent);
+        return true;
+    }
+
     // SAMU: Delete returns false when the selected event is not found.
     public boolean deleteEvent(Event event) {
         return events.remove(event);
@@ -35,7 +45,6 @@ public class EventDAO {
                 "Use the main hall entrance near the parking area.",
                 "Annual graduation ceremony for EASV students",
                 "Free",
-                "Available",
                 new String[]{"Event Coordinator 1", "Event Coordinator 2"}
         ));
 
@@ -47,7 +56,6 @@ public class EventDAO {
                 "",
                 "Annual technology and innovation conference",
                 "150 DKK",
-                "Selling Fast",
                 new String[]{"Event Coordinator 3"}
         ));
 
@@ -59,7 +67,6 @@ public class EventDAO {
                 "Meet at the north lobby reception desk.",
                 "Business networking event for professionals",
                 "500 DKK",
-                "Available",
                 new String[]{"Event Coordinator 4", "Event Coordinator 5"}
         ));
     }

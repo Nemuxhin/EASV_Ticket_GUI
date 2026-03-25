@@ -15,6 +15,10 @@ public class EventManager {
         eventDAO.addEvent(event);
     }
 
+    public boolean updateEvent(Event currentEvent, Event updatedEvent) {
+        return eventDAO.updateEvent(currentEvent, updatedEvent);
+    }
+
     public boolean deleteEvent(Event event) {
         return eventDAO.deleteEvent(event);
     }
