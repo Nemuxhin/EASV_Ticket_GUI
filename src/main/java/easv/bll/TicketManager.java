@@ -1,7 +1,7 @@
-package Java.Bll;
+package easv.bll;
 
-import Java.Be.Ticket;
-import Java.Dal.TicketDAO;
+import easv.be.Ticket;
+import easv.dal.TicketDAO;
 
 import java.util.List;
 

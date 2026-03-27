@@ -1,8 +1,8 @@
-package Java.Bll;
+package easv.bll;
 
-import Java.Be.User;
-import Java.Dal.LoginDAO;
-import Java.Dal.UserDAO;
+import easv.be.User;
+import easv.dal.LoginDAO;
+import easv.dal.UserDAO;
 
 import java.util.List;
 

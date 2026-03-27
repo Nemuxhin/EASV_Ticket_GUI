@@ -1,7 +1,7 @@
-package Java.gui.controller;
+package easv.controller;
 
-import Java.Be.User;
-import Java.Bll.UserManager;
+import easv.be.User;
+import easv.bll.UserManager;
 
 import java.util.List;
 

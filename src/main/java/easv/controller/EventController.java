@@ -1,7 +1,7 @@
-package Java.gui.controller;
+package easv.controller;
 
-import Java.Be.Event;
-import Java.Bll.EventManager;
+import easv.be.Event;
+import easv.bll.EventManager;
 
 import java.util.List;
 

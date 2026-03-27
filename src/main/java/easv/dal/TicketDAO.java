@@ -1,6 +1,6 @@
-package Java.Dal;
+package easv.dal;
 
-import Java.Be.Ticket;
+import easv.be.Ticket;
 
 import java.util.ArrayList;
 import java.util.List;

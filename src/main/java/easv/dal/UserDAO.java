@@ -1,6 +1,6 @@
-package Java.Dal;
+package easv.dal;
 
-import Java.Be.User;
+import easv.be.User;
 
 import java.util.ArrayList;
 import java.util.List;

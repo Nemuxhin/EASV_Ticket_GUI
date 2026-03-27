@@ -1,4 +1,4 @@
-package Java.Be;
+package easv.be;
 
 public class Ticket {
     private String ticketId;

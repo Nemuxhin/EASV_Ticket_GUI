@@ -1,7 +1,7 @@
-package Java.gui.controller;
+package easv.controller;
 
-import Java.Be.Ticket;
-import Java.Bll.TicketManager;
+import easv.be.Ticket;
+import easv.bll.TicketManager;
 
 import java.util.List;
 

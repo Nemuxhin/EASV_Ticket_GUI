@@ -1,6 +1,6 @@
-package Java.gui.controller;
+package easv.controller;
 
-import Java.Bll.UserManager;
+import easv.bll.UserManager;
 
 public class LoginController {
 

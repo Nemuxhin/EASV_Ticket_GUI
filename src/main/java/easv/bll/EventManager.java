@@ -1,7 +1,7 @@
-package Java.Bll;
+package easv.bll;
 
-import Java.Be.Event;
-import Java.Dal.EventDAO;
+import easv.be.Event;
+import easv.dal.EventDAO;
 
 import java.util.List;
 
