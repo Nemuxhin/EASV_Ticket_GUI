@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 public class EASVTicketsApp extends Application {
     private static final String[][] AVAILABLE_COORDINATORS = {
@@ -291,6 +292,8 @@ public class EASVTicketsApp extends Application {
     // Each screen adds its own actions on top of the same base card.
     private VBox buildEventCard(Event event, String viewMode) {
         VBox card = ViewFactory.createEventCardBase(event);
+        VBox actionBox = new VBox(10);
+        actionBox.setFillWidth(true);
 
         if ("CUSTOMER".equals(viewMode)) {
             Button buyButton = new Button("Buy Ticket");
@@ -298,14 +301,14 @@ public class EASVTicketsApp extends Application {
             buyButton.setMaxWidth(Double.MAX_VALUE);
             buyButton.setOnAction(e -> showBuyTicket(event));
 
-            card.getChildren().addAll(ViewFactory.createPriceLabel(event.getPrice()), buyButton);
+            actionBox.getChildren().addAll(ViewFactory.createPriceLabel(event.getPrice()), buyButton);
         } else if ("ADMIN_EVENTS".equals(viewMode)) {
-            card.getChildren().addAll(
+            actionBox.getChildren().addAll(
                     ViewFactory.createPriceLabel(event.getPrice()),
                     createDeleteEventButton(event, viewMode)
             );
         } else if ("COORD_EVENTS".equals(viewMode)) {
-            card.getChildren().addAll(
+            actionBox.getChildren().addAll(
                     ViewFactory.createPriceLabel(event.getPrice()),
                     createEditEventButton(event, viewMode),
                     createDeleteEventButton(event, viewMode)
@@ -316,13 +319,41 @@ public class EASVTicketsApp extends Application {
 
             card.getChildren().addAll(
                     coordinatorTitle,
-                    ViewFactory.createCoordinatorPillBox(event.getCoordinators()),
+                    ViewFactory.createCoordinatorPillBox(event.getCoordinators())
+            );
+
+            actionBox.getChildren().addAll(
                     createAssignAccessButton(event, viewMode),
                     createDeleteEventButton(event, viewMode)
             );
         }
 
+        addCardFooter(card, actionBox, viewMode);
         return card;
+    }
+
+    // SAMU: A shared footer keeps price and buttons aligned in every card.
+    private void addCardFooter(VBox card, VBox actionBox, String viewMode) {
+        if (actionBox.getChildren().isEmpty()) {
+            return;
+        }
+
+        Region spacer = new Region();
+        VBox.setVgrow(spacer, Priority.ALWAYS);
+
+        card.setFillWidth(true);
+        card.setMinHeight(getCardMinHeight(viewMode));
+        card.getChildren().addAll(spacer, new Separator(), actionBox);
+    }
+
+    private double getCardMinHeight(String viewMode) {
+        if ("COORD_ACCESS".equals(viewMode)) {
+            return 480;
+        }
+        if ("COORD_EVENTS".equals(viewMode)) {
+            return 470;
+        }
+        return 430;
     }
 
     private ScrollPane createScrollPane(Region content) {
@@ -411,6 +442,8 @@ public class EASVTicketsApp extends Application {
         notesField.setWrapText(true);
         notesField.setPrefRowCount(3);
         TextField priceField = new TextField();
+        priceField.setPromptText("Example: 150 or 150.50");
+        priceField.setTextFormatter(createPriceTextFormatter());
         CheckBox[] coordinatorBoxes = createCoordinatorBoxes(currentEvent == null ? new String[0] : currentEvent.getCoordinators());
 
         FlowPane coordinatorSelection = new FlowPane(10, 10);
@@ -457,7 +490,7 @@ public class EASVTicketsApp extends Application {
 
             if (!validationMessage.isEmpty()) {
                 e.consume();
-                showErrorMessage("Missing required input", validationMessage);
+                showErrorMessage("Invalid input", validationMessage);
             }
         });
 
@@ -470,7 +503,7 @@ public class EASVTicketsApp extends Application {
                         locationField.getText().trim(),
                         locationGuidanceField.getText().trim(),
                         notesField.getText().trim(),
-                        priceField.getText().trim(),
+                        normalizePriceValue(priceField.getText()),
                         collectSelectedCoordinators(coordinatorBoxes)
                 );
             }
@@ -524,7 +557,7 @@ public class EASVTicketsApp extends Application {
         }
     }
 
-    // SAMU: Only required fields and simple date-time rules are checked here.
+    // SAMU: Required fields stay simple, and price must be numeric.
     private String validateRequiredInput(String title, LocalDate startDate, String startTime,
                                          LocalDate endDate, String endTime, String location,
                                          String notes, String price) {
@@ -548,10 +581,34 @@ public class EASVTicketsApp extends Application {
             message.append("- Notes are required.\n");
         }
         if (price == null || price.isBlank()) {
-            message.append("- Price is required.");
+            message.append("- Price is required.\n");
+        } else if (!isValidPrice(price)) {
+            message.append("- Price must be a valid number.\n");
         }
 
         return message.toString().trim();
+    }
+
+    // SAMU: This filter stops letters and keeps the price easy to validate.
+    private TextFormatter<String> createPriceTextFormatter() {
+        UnaryOperator<TextFormatter.Change> priceFilter = change -> {
+            String newText = change.getControlNewText();
+
+            if (newText.isEmpty() || newText.matches("\\d*(?:[.,]\\d{0,2})?")) {
+                return change;
+            }
+            return null;
+        };
+
+        return new TextFormatter<>(priceFilter);
+    }
+
+    private boolean isValidPrice(String price) {
+        return price != null && price.matches("\\d+(?:[.,]\\d{1,2})?");
+    }
+
+    private String normalizePriceValue(String price) {
+        return price.trim().replace(',', '.');
     }
 
     private ComboBox<String> createTimeBox() {

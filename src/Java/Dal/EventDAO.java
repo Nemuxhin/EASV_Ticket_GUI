@@ -44,7 +44,7 @@ public class EventDAO {
                 "EASV Campus, Esbjerg",
                 "Use the main hall entrance near the parking area.",
                 "Annual graduation ceremony for EASV students",
-                "Free",
+                "0",
                 new String[]{"Event Coordinator 1", "Event Coordinator 2"}
         ));
 
@@ -55,7 +55,7 @@ public class EventDAO {
                 "Innovation Hub, Esbjerg",
                 "",
                 "Annual technology and innovation conference",
-                "150 DKK",
+                "150",
                 new String[]{"Event Coordinator 3"}
         ));
 
@@ -66,7 +66,7 @@ public class EventDAO {
                 "Copenhagen Convention Center",
                 "Meet at the north lobby reception desk.",
                 "Business networking event for professionals",
-                "500 DKK",
+                "500",
                 new String[]{"Event Coordinator 4", "Event Coordinator 5"}
         ));
     }

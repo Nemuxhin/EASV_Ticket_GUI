@@ -4,9 +4,9 @@ import Java.Be.Event;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.Separator;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.VBox;
+import java.util.Locale;
 
 public class ViewFactory {
     public static VBox createHeader(String appTitle, String appSubtitle, String pageTitle, String pageSubtitle) {
@@ -84,7 +84,8 @@ public class ViewFactory {
         notesHead.getStyleClass().add("notes-head");
         Label notesLabel = createCardText(event.getNotes());
 
-        card.getChildren().addAll(notesHead, notesLabel, new Separator());
+        card.setFillWidth(true);
+        card.getChildren().addAll(notesHead, notesLabel);
         return card;
     }
 
@@ -98,9 +99,29 @@ public class ViewFactory {
     }
 
     public static Label createPriceLabel(String price) {
-        Label priceLabel = new Label(price);
+        Label priceLabel = new Label(formatPrice(price));
         priceLabel.getStyleClass().add("price-text");
         return priceLabel;
+    }
+
+    // SAMU: Numeric prices stay simple in the model and clearer in the UI.
+    private static String formatPrice(String price) {
+        if (price == null || price.isBlank()) {
+            return "";
+        }
+
+        try {
+            double numericPrice = Double.parseDouble(price.replace(',', '.'));
+            if (numericPrice == 0) {
+                return "Free";
+            }
+            if (numericPrice == Math.floor(numericPrice)) {
+                return String.format(Locale.ENGLISH, "%.0f DKK", numericPrice);
+            }
+            return String.format(Locale.ENGLISH, "%.2f DKK", numericPrice);
+        } catch (NumberFormatException ignored) {
+            return price;
+        }
     }
 
     public static FlowPane createCoordinatorPillBox(String[] coordinators) {
