@@ -1,0 +1,610 @@
+package easv.gui;
+
+import easv.be.Event;
+import easv.be.User;
+import easv.controller.EventController;
+import easv.controller.UserController;
+import javafx.collections.FXCollections;
+import javafx.geometry.Insets;
+import javafx.geometry.Orientation;
+import javafx.geometry.Pos;
+import javafx.scene.Parent;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
+import javafx.scene.control.DatePicker;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.Separator;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+import javafx.scene.control.TextFormatter;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.VBox;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.function.UnaryOperator;
+
+public class CoordinatorDashboardView {
+    private static final DateTimeFormatter DISPLAY_DATE_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy 'at' HH:mm", Locale.ENGLISH);
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+
+    private final MainView mainView;
+    private final EventController eventController;
+    private final UserController userController;
+    private final String activeTab;
+
+    public CoordinatorDashboardView(MainView mainView, EventController eventController,
+                                    UserController userController, String activeTab) {
+        this.mainView = mainView;
+        this.eventController = eventController;
+        this.userController = userController;
+        this.activeTab = activeTab;
+    }
+
+    public Parent getView() {
+        javafx.scene.layout.BorderPane layout = new javafx.scene.layout.BorderPane();
+        layout.getStyleClass().add("main-bg");
+        layout.setLeft(createSidebar());
+
+        VBox content = "Manage Access".equals(activeTab)
+                ? createManageAccessContent()
+                : createEventsContent();
+
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: #F8F9FA;");
+        layout.setCenter(scrollPane);
+
+        return layout;
+    }
+
+    private VBox createSidebar() {
+        VBox sidebar = new VBox(20);
+        sidebar.getStyleClass().add("sidebar");
+        sidebar.setPrefWidth(220);
+        sidebar.setPadding(new Insets(20));
+
+        Label logo = new Label("Coordinator Portal");
+        logo.getStyleClass().add("sidebar-logo");
+
+        Button eventsBtn = createMenuBtn(
+                "\uD83D\uDCC5 Events",
+                "Events".equals(activeTab),
+                e -> mainView.showCoordinatorDashboard("Events")
+        );
+
+        Button accessBtn = createMenuBtn(
+                "\uD83D\uDC65 Manage Access",
+                "Manage Access".equals(activeTab),
+                e -> mainView.showCoordinatorDashboard("Manage Access")
+        );
+
+        Region spacer = new Region();
+        VBox.setVgrow(spacer, Priority.ALWAYS);
+
+        Button logoutBtn = new Button("\uD83D\uDEAA Logout");
+        logoutBtn.getStyleClass().add("sidebar-logout");
+        logoutBtn.setMaxWidth(Double.MAX_VALUE);
+        logoutBtn.setOnAction(e -> mainView.showPortalSelection());
+
+        sidebar.getChildren().addAll(logo, eventsBtn, accessBtn, spacer, logoutBtn);
+        return sidebar;
+    }
+
+    private VBox createEventsContent() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(30, 50, 30, 50));
+
+        Label title = new Label("Events");
+        title.getStyleClass().add("page-title");
+
+        TextField searchBar = new TextField();
+        searchBar.setPromptText("Search events...");
+        searchBar.getStyleClass().add("search-bar");
+        searchBar.setMaxWidth(400);
+
+        Button createBtn = new Button("\uFF0B Create Event");
+        createBtn.getStyleClass().add("primary-btn");
+        createBtn.setPrefWidth(1000);
+        createBtn.setOnAction(e -> showCreateEventDialog());
+
+        FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
+        grid.setPrefWrapLength(1000);
+
+        for (Event event : eventController.getEvents()) {
+            grid.getChildren().add(createEventCard(event));
+        }
+
+        content.getChildren().addAll(title, searchBar, createBtn, grid);
+        return content;
+    }
+
+    private VBox createManageAccessContent() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(30, 50, 30, 50));
+
+        Label title = new Label("Manage Access");
+        title.getStyleClass().add("page-title");
+
+        TextField searchBar = new TextField();
+        searchBar.setPromptText("Search events...");
+        searchBar.getStyleClass().add("search-bar");
+        searchBar.setMaxWidth(400);
+
+        FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
+        grid.setPrefWrapLength(1000);
+
+        for (Event event : eventController.getEvents()) {
+            grid.getChildren().add(createAccessCard(event));
+        }
+
+        content.getChildren().addAll(title, searchBar, grid);
+        return content;
+    }
+
+    private VBox createEventCard(Event event) {
+        VBox card = new VBox(10);
+        card.getStyleClass().add("event-card");
+
+        HBox top = new HBox();
+        Label titleLbl = new Label(event.getTitle());
+        titleLbl.getStyleClass().add("card-title");
+
+        Label statusLbl = new Label(event.getStatus());
+        statusLbl.getStyleClass().add(
+                "Available".equals(event.getStatus()) ? "status-avail" : "status-fast"
+        );
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        top.getChildren().addAll(titleLbl, spacer, statusLbl);
+
+        VBox scheduleBox = new VBox(6);
+        Label startLbl = new Label("\uD83D\uDD52 " + event.getStartDateTime());
+        startLbl.getStyleClass().add("card-text");
+        scheduleBox.getChildren().add(startLbl);
+        if (event.hasEndDateTime()) {
+            Label endLbl = new Label("Ends: " + event.getEndDateTime());
+            endLbl.getStyleClass().add("card-text");
+            scheduleBox.getChildren().add(endLbl);
+        }
+
+        VBox locationBox = new VBox(6);
+        Label locationLbl = new Label("\uD83D\uDCCD " + event.getLocation());
+        locationLbl.getStyleClass().add("card-text");
+        locationBox.getChildren().add(locationLbl);
+        if (event.hasLocationGuidance()) {
+            Label guidanceLbl = new Label("Guidance: " + event.getLocationGuidance());
+            guidanceLbl.getStyleClass().add("card-text");
+            guidanceLbl.setWrapText(true);
+            locationBox.getChildren().add(guidanceLbl);
+        }
+
+        Label notesHead = new Label("Notes");
+        notesHead.getStyleClass().add("notes-head");
+
+        Label notesLbl = new Label(event.getNotes());
+        notesLbl.getStyleClass().add("card-text");
+        notesLbl.setWrapText(true);
+
+        Label priceLbl = new Label(event.getPrice());
+        priceLbl.getStyleClass().add("price-text");
+
+        Button sellBtn = new Button("Sell Ticket");
+        sellBtn.getStyleClass().add("primary-btn");
+        sellBtn.setMaxWidth(Double.MAX_VALUE);
+        sellBtn.setOnAction(e -> mainView.showCustomerDashboard(event));
+
+        Button editBtn = new Button("Edit Event");
+        editBtn.getStyleClass().add("secondary-btn");
+        editBtn.setMaxWidth(Double.MAX_VALUE);
+        editBtn.setOnAction(e -> showEditEventDialog(event));
+
+        Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
+        deleteBtn.getStyleClass().add("danger-btn");
+        deleteBtn.setMaxWidth(Double.MAX_VALUE);
+        deleteBtn.setOnAction(e -> {
+            eventController.deleteEvent(event);
+            mainView.showCoordinatorDashboard("Events");
+        });
+
+        card.getChildren().addAll(
+                top,
+                scheduleBox,
+                locationBox,
+                notesHead,
+                notesLbl,
+                new Separator(),
+                priceLbl,
+                sellBtn,
+                editBtn,
+                deleteBtn
+        );
+
+        return card;
+    }
+
+    private VBox createAccessCard(Event event) {
+        VBox card = new VBox(10);
+        card.getStyleClass().add("event-card");
+
+        HBox top = new HBox();
+        Label titleLbl = new Label(event.getTitle());
+        titleLbl.getStyleClass().add("card-title");
+
+        Label statusLbl = new Label(event.getStatus());
+        statusLbl.getStyleClass().add(
+                "Available".equals(event.getStatus()) ? "status-avail" : "status-fast"
+        );
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        top.getChildren().addAll(titleLbl, spacer, statusLbl);
+
+        Label dateLbl = new Label("\uD83D\uDD52 " + event.getStartDateTime());
+        dateLbl.getStyleClass().add("card-text");
+
+        Label locationLbl = new Label("\uD83D\uDCCD " + event.getLocation());
+        locationLbl.getStyleClass().add("card-text");
+
+        Label assignedHead = new Label("Assigned Coordinators");
+        assignedHead.getStyleClass().add("notes-head");
+
+        FlowPane pillBox = new FlowPane(5, 5);
+        if (event.getCoordinators().length == 0) {
+            Label emptyLbl = new Label("No coordinators assigned yet");
+            emptyLbl.getStyleClass().add("card-text");
+            pillBox.getChildren().add(emptyLbl);
+        } else {
+            for (String coordinator : event.getCoordinators()) {
+                Label pill = new Label(coordinator);
+                pill.getStyleClass().add("coord-pill");
+                pillBox.getChildren().add(pill);
+            }
+        }
+
+        Button assignBtn = new Button("\uD83D\uDC65 Assign Access");
+        assignBtn.getStyleClass().add("primary-btn");
+        assignBtn.setMaxWidth(Double.MAX_VALUE);
+        assignBtn.setOnAction(e -> showAssignAccessDialog(event));
+
+        Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
+        deleteBtn.getStyleClass().add("danger-btn");
+        deleteBtn.setMaxWidth(Double.MAX_VALUE);
+        deleteBtn.setOnAction(e -> {
+            eventController.deleteEvent(event);
+            mainView.showCoordinatorDashboard("Manage Access");
+        });
+
+        card.getChildren().addAll(
+                top,
+                dateLbl,
+                locationLbl,
+                assignedHead,
+                pillBox,
+                assignBtn,
+                deleteBtn
+        );
+
+        return card;
+    }
+
+    private Button createMenuBtn(String text, boolean isActive,
+                                 javafx.event.EventHandler<javafx.event.ActionEvent> action) {
+        Button btn = new Button(text);
+        btn.getStyleClass().add(isActive ? "sidebar-menu-btn-active" : "sidebar-menu-btn");
+        btn.setMaxWidth(Double.MAX_VALUE);
+        btn.setAlignment(Pos.CENTER_LEFT);
+        btn.setOnAction(action);
+        return btn;
+    }
+
+    private void showCreateEventDialog() {
+        EventEditor editor = new EventEditor("Create Event", null);
+        editor.showAndWait().ifPresent(event -> {
+            eventController.createEvent(event);
+            mainView.showCoordinatorDashboard("Events");
+        });
+    }
+
+    private void showEditEventDialog(Event currentEvent) {
+        EventEditor editor = new EventEditor("Edit Event", currentEvent);
+        editor.showAndWait().ifPresent(updatedEvent -> {
+            boolean updated = eventController.updateEvent(currentEvent, updatedEvent);
+            if (!updated) {
+                AlertHelper.showError("Update Failed", "The selected event could not be updated.");
+                return;
+            }
+            mainView.showCoordinatorDashboard("Events");
+        });
+    }
+
+    private void showAssignAccessDialog(Event currentEvent) {
+        List<User> coordinators = userController.getUsersByRole("Event Coordinator");
+        if (coordinators.isEmpty()) {
+            showInfo("No event coordinators are available yet.");
+            return;
+        }
+
+        Dialog<String[]> dialog = new Dialog<>();
+        dialog.setTitle("Assign Access");
+        dialog.setHeaderText("Select event coordinators");
+
+        ButtonType saveButtonType = new ButtonType("Save Access", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(20));
+
+        List<CheckBox> boxes = new ArrayList<>();
+        List<String> currentAssignments = Arrays.asList(currentEvent.getCoordinators());
+        for (User coordinator : coordinators) {
+            CheckBox box = new CheckBox(coordinator.getName() + " (" + coordinator.getEmail() + ")");
+            box.setSelected(currentAssignments.contains(coordinator.getName()));
+            boxes.add(box);
+            content.getChildren().add(box);
+        }
+
+        dialog.getDialogPane().setContent(content);
+        dialog.setResultConverter(buttonType -> {
+            if (buttonType != saveButtonType) {
+                return null;
+            }
+            List<String> selected = new ArrayList<>();
+            for (int i = 0; i < boxes.size(); i++) {
+                if (boxes.get(i).isSelected()) {
+                    selected.add(coordinators.get(i).getName());
+                }
+            }
+            return selected.toArray(new String[0]);
+        });
+
+        dialog.showAndWait().ifPresent(selected -> {
+            eventController.setCoordinators(currentEvent, selected);
+            mainView.showCoordinatorDashboard("Manage Access");
+        });
+    }
+
+    private void showInfo(String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Manage Access");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
+    }
+
+    private String validateEventInput(String title,
+                                      LocalDate startDate,
+                                      String startTime,
+                                      LocalDate endDate,
+                                      String endTime,
+                                      String location,
+                                      String notes,
+                                      String price) {
+        StringBuilder message = new StringBuilder();
+
+        if (title == null || title.isBlank()) {
+            message.append("- Title is required.\n");
+        }
+        if (startDate == null || startTime == null || startTime.isBlank()) {
+            message.append("- Start date and time are required.\n");
+        }
+        boolean hasEndDate = endDate != null;
+        boolean hasEndTime = endTime != null && !endTime.isBlank();
+        if (hasEndDate != hasEndTime) {
+            message.append("- End date and time must both be selected or both be empty.\n");
+        }
+        if (location == null || location.isBlank()) {
+            message.append("- Location is required.\n");
+        }
+        if (notes == null || notes.isBlank()) {
+            message.append("- Notes are required.\n");
+        }
+        if (price == null || price.isBlank()) {
+            message.append("- Ticket price is required.\n");
+        } else {
+            try {
+                double parsedPrice = Double.parseDouble(price.replace(",", "."));
+                if (parsedPrice < 0) {
+                    message.append("- Price cannot be negative.\n");
+                }
+            } catch (NumberFormatException ex) {
+                message.append("- Price must be numeric.\n");
+            }
+        }
+
+        if (message.length() > 0) {
+            return message.toString().trim();
+        }
+
+        try {
+            LocalDateTime startDateTime = LocalDateTime.of(startDate, LocalTime.parse(startTime, TIME_FORMATTER));
+            if (startDateTime.isBefore(LocalDateTime.now())) {
+                return "The event start time cannot be in the past.";
+            }
+
+            if (hasEndDate && hasEndTime) {
+                LocalDateTime endDateTime = LocalDateTime.of(endDate, LocalTime.parse(endTime, TIME_FORMATTER));
+                if (!endDateTime.isAfter(startDateTime)) {
+                    return "The event end time must be after the start time.";
+                }
+            }
+        } catch (DateTimeParseException ex) {
+            return "Please use valid time values in HH:mm format.";
+        }
+
+        return null;
+    }
+
+    private String buildDateTimeValue(LocalDate date, String time) {
+        if (date == null || time == null || time.isBlank()) {
+            return "";
+        }
+        LocalTime selectedTime = LocalTime.parse(time, TIME_FORMATTER);
+        return DISPLAY_DATE_TIME.format(LocalDateTime.of(date, selectedTime));
+    }
+
+    private void setDateTimeFields(String dateTimeValue, DatePicker datePicker, ComboBox<String> timeBox) {
+        if (dateTimeValue == null || dateTimeValue.isBlank()) {
+            return;
+        }
+
+        try {
+            LocalDateTime parsedDateTime = LocalDateTime.parse(dateTimeValue, DISPLAY_DATE_TIME);
+            datePicker.setValue(parsedDateTime.toLocalDate());
+            timeBox.setValue(parsedDateTime.toLocalTime().format(TIME_FORMATTER));
+        } catch (DateTimeParseException ignored) {
+        }
+    }
+
+    private String normalizePrice(String rawPrice) {
+        double value = Double.parseDouble(rawPrice.trim().replace(",", "."));
+        if (value == 0) {
+            return "Free";
+        }
+        if (value == Math.floor(value)) {
+            return String.format(Locale.ENGLISH, "%.0f DKK", value);
+        }
+        return String.format(Locale.ENGLISH, "%.2f DKK", value);
+    }
+
+    private final class EventEditor {
+        private final Dialog<Event> dialog;
+
+        private EventEditor(String title, Event seedEvent) {
+            dialog = new Dialog<>();
+            dialog.setTitle(title);
+            dialog.setHeaderText("Enter event details");
+            dialog.getDialogPane().getButtonTypes().addAll(
+                    new ButtonType("Save", ButtonBar.ButtonData.OK_DONE),
+                    ButtonType.CANCEL
+            );
+
+            VBox form = new VBox(10);
+            form.setPadding(new Insets(20));
+
+            TextField titleField = new TextField();
+            titleField.setPromptText("Event title");
+
+            DatePicker startDatePicker = new DatePicker();
+            ComboBox<String> startTimeBox = createTimeBox();
+
+            DatePicker endDatePicker = new DatePicker();
+            ComboBox<String> endTimeBox = createTimeBox();
+
+            TextField locationField = new TextField();
+            locationField.setPromptText("Location");
+
+            TextField guidanceField = new TextField();
+            guidanceField.setPromptText("Location guidance");
+
+            TextArea notesArea = new TextArea();
+            notesArea.setPromptText("Notes");
+            notesArea.setPrefRowCount(3);
+
+            TextField priceField = new TextField();
+            priceField.setPromptText("100");
+            priceField.setTextFormatter(numericFormatter());
+
+            if (seedEvent != null) {
+                titleField.setText(seedEvent.getTitle());
+                setDateTimeFields(seedEvent.getStartDateTime(), startDatePicker, startTimeBox);
+                setDateTimeFields(seedEvent.getEndDateTime(), endDatePicker, endTimeBox);
+                locationField.setText(seedEvent.getLocation());
+                guidanceField.setText(seedEvent.getLocationGuidance());
+                notesArea.setText(seedEvent.getNotes());
+                priceField.setText(seedEvent.getPrice().replace("DKK", "").replace("Free", "0").trim());
+            }
+
+            form.getChildren().addAll(
+                new Label("Title"), titleField,
+                new Label("Start Date"), startDatePicker,
+                new Label("Start Time"), startTimeBox,
+                new Label("End Date"), endDatePicker,
+                new Label("End Time"), endTimeBox,
+                new Label("Location"), locationField,
+                new Label("Location Guidance"), guidanceField,
+                new Label("Notes"), notesArea,
+                new Label("Price"), priceField
+            );
+
+            dialog.getDialogPane().setContent(form);
+            dialog.setResultConverter(buttonType -> {
+                if (buttonType.getButtonData() != ButtonBar.ButtonData.OK_DONE) {
+                    return null;
+                }
+
+                String validation = validateEventInput(
+                        titleField.getText().trim(),
+                        startDatePicker.getValue(),
+                        startTimeBox.getValue(),
+                        endDatePicker.getValue(),
+                        endTimeBox.getValue(),
+                        locationField.getText().trim(),
+                        notesArea.getText().trim(),
+                        priceField.getText().trim()
+                );
+
+                if (validation != null) {
+                    AlertHelper.showError("Invalid Event", validation);
+                    return null;
+                }
+
+                return new Event(
+                        titleField.getText().trim(),
+                        buildDateTimeValue(startDatePicker.getValue(), startTimeBox.getValue()),
+                        buildDateTimeValue(endDatePicker.getValue(), endTimeBox.getValue()),
+                        locationField.getText().trim(),
+                        guidanceField.getText().trim(),
+                        notesArea.getText().trim(),
+                        normalizePrice(priceField.getText()),
+                        seedEvent == null ? "Available" : seedEvent.getStatus(),
+                        seedEvent == null ? new String[0] : seedEvent.getCoordinators()
+                );
+            });
+        }
+
+        private Optional<Event> showAndWait() {
+            return dialog.showAndWait();
+        }
+
+        private ComboBox<String> createTimeBox() {
+            return new ComboBox<>(FXCollections.observableArrayList(generateTimes()));
+        }
+
+        private List<String> generateTimes() {
+            List<String> values = new ArrayList<>();
+            for (int hour = 0; hour < 24; hour++) {
+                for (int minute = 0; minute < 60; minute += 15) {
+                    values.add(String.format(Locale.ENGLISH, "%02d:%02d", hour, minute));
+                }
+            }
+            return values;
+        }
+
+        private TextFormatter<String> numericFormatter() {
+            UnaryOperator<TextFormatter.Change> filter = change -> {
+                String next = change.getControlNewText();
+                return next.matches("\\d{0,6}([\\.,]\\d{0,2})?") ? change : null;
+            };
+            return new TextFormatter<>(filter);
+        }
+    }
+}
