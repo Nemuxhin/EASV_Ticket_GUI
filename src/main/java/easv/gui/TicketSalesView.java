@@ -77,6 +77,11 @@ public class TicketSalesView {
             eventCard.getChildren().add(styleLabel("Guidance: " + event.getLocationGuidance(), "card-text"));
         }
 
+        Button directionsButton = new Button("Open Directions");
+        directionsButton.getStyleClass().add("secondary-btn");
+        directionsButton.setOnAction(e -> MapViewHelper.openDirections(event));
+        eventCard.getChildren().add(directionsButton);
+
         VBox formCard = new VBox(18);
         formCard.getStyleClass().add("event-card");
         formCard.setMaxWidth(1100);

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="b0398996-ab68-4d01-ac9a-7b3635382023" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/EASV Ticket GUI.iml" beforeDir="false" afterPath="$PROJECT_DIR$/EASV Ticket GUI.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/out/production/EASV Ticket GUI/main/resources/css/easv-style.css" beforeDir="false" afterPath="$PROJECT_DIR$/out/production/EASV Ticket GUI/main/resources/css/easv-style.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/be/Customer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/be/Customer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/be/Event.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/be/Event.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/be/Ticket.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/be/Ticket.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/be/TicketPurchase.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/be/TicketPurchase.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/be/User.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/be/User.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/bll/BarcodeGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/bll/BarcodeGenerator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/bll/EventManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/bll/EventManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/bll/QrCodeGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/bll/QrCodeGenerator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/bll/TicketManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/bll/TicketManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/bll/TokenGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/bll/TokenGenerator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/bll/UserManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/bll/UserManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/controller/EventController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/controller/EventController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/controller/LoginController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/controller/LoginController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/controller/TicketController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/controller/TicketController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/controller/UserController.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/controller/UserController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/dal/EventDAO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/dal/EventDAO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/dal/LoginDAO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/dal/LoginDAO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/dal/TicketDAO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/dal/TicketDAO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/dal/UserDAO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/dal/UserDAO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/gui/AdminDashboardView.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/gui/AdminDashboardView.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/gui/AlertHelper.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/gui/AlertHelper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/gui/CoordinatorDashboardView.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/gui/CoordinatorDashboardView.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/gui/EASVTicketsApp.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/gui/EASVTicketsApp.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/gui/LoginView.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/gui/LoginView.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/gui/MainView.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/gui/MainView.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/gui/PortalLoginView.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/gui/PortalLoginView.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/easv/gui/TicketSalesView.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/easv/gui/TicketSalesView.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/resources/css/easv-style.css" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/css/easv-style.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/css/easv-style.css" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/css/easv-style.css" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;Nemuxhin&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/Nemuxhin/EASV_Ticket_GUI.git&quot;,
+    &quot;accountId&quot;: &quot;596a1b47-5f7f-4715-aa53-df0716328694&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1
+}</component>
+  <component name="ProjectId" id="3BzwYQrazFLHk7KThaDytoys87s" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Application.EASVTicketsApp.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "master",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "C:/Users/Nemux/Downloads/EASV_Ticket_GUI",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.15",
+    "project.structure.side.proportion": "0.2",
+    "settings.editor.selected.configurable": "kubernetes.configurable.id",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="b0398996-ab68-4d01-ac9a-7b3635382023" name="Changes" comment="" />
+      <created>1775505255581</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1775505255581</updated>
+      <workItem from="1775505256701" duration="439000" />
+      <workItem from="1775506026483" duration="171000" />
+      <workItem from="1775506242169" duration="149000" />
+      <workItem from="1775506399865" duration="449000" />
+      <workItem from="1775506858426" duration="80000" />
+      <workItem from="1775506948022" duration="319000" />
+      <workItem from="1775507268739" duration="33000" />
+      <workItem from="1775507310738" duration="308000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+</project>
