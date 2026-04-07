@@ -289,3 +289,73 @@
 .success-back-btn:hover {
     -fx-background-color: #dc614f;
 }
+
+.portal-login-shell {
+    -fx-alignment: center;
+}
+
+.portal-login-icon-circle {
+    -fx-background-color: #1A202C;
+    -fx-background-radius: 999px;
+    -fx-min-width: 58px;
+    -fx-min-height: 58px;
+    -fx-max-width: 58px;
+    -fx-max-height: 58px;
+    -fx-alignment: center;
+}
+
+.portal-login-title {
+    -fx-font-size: 21px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0F172A;
+}
+
+.portal-login-subtitle {
+    -fx-font-size: 14px;
+    -fx-text-fill: #64748B;
+    -fx-padding: 0 0 14 0;
+}
+
+.portal-input {
+    -fx-background-color: white;
+    -fx-border-color: #CBD5E0;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-background-insets: 0;
+    -fx-padding: 13px 14px;
+    -fx-font-size: 14px;
+}
+
+.portal-input:focused {
+    -fx-border-color: #E86A57;
+    -fx-background-color: white;
+}
+
+.portal-primary-btn {
+    -fx-background-color: #E46B58;
+    -fx-text-fill: white;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 10px;
+    -fx-padding: 14px 18px;
+}
+
+.portal-primary-btn:hover {
+    -fx-background-color: #D8604E;
+}
+
+.portal-secondary-btn {
+    -fx-background-color: white;
+    -fx-text-fill: #334155;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-border-color: #D9E2EC;
+    -fx-border-width: 1px;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-padding: 14px 18px;
+}
+
+.portal-secondary-btn:hover {
+    -fx-background-color: #F8FAFC;
+}

@@ -131,4 +131,20 @@ public class Ticket {
     public void setUsed(boolean used) {
         this.used = used;
     }
+
+    public boolean hasCustomer() {
+        return customer != null;
+    }
+
+    public boolean matchesEvent(String otherEventTitle) {
+        if (validForAllEvents) {
+            return true;
+        }
+
+        if (eventTitle == null || otherEventTitle == null) {
+            return false;
+        }
+
+        return eventTitle.trim().equalsIgnoreCase(otherEventTitle.trim());
+    }
 }

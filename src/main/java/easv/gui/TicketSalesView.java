@@ -27,6 +27,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.io.ByteArrayInputStream;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -207,29 +208,38 @@ public class TicketSalesView {
                 quantity
         );
 
-        Ticket ticket = createTicketFromPurchase(purchase);
-        showSuccess(ticket, purchase, formatPrice(purchase.getTotalPrice()));
-    }
-
-    private Ticket createTicketFromPurchase(TicketPurchase purchase) {
         Customer customer = new Customer(
                 "CUST-" + UUID.randomUUID().toString().substring(0, 8),
                 purchase.getCustomerName(),
                 purchase.getCustomerEmail()
         );
 
-        return ticketController.createEventTicket(
+        String singleTicketPrice = formatPrice(
+                eventController.calculateTotalPrice(event, purchase.getTicketType(), 1)
+        );
+
+        List<Ticket> tickets = ticketController.createEventTickets(
                 event,
                 customer,
                 purchase.getTicketType(),
                 describeTicketType(purchase.getTicketType()),
-                formatPrice(purchase.getTotalPrice()),
+                singleTicketPrice,
                 event.getEndDateTime(),
-                event.getLocationGuidance()
+                event.getLocationGuidance(),
+                purchase.getQuantity()
         );
+
+        showSuccess(tickets, purchase, formatPrice(purchase.getTotalPrice()));
     }
 
-    private void showSuccess(Ticket ticket, TicketPurchase purchase, String totalPaid) {
+    private void showSuccess(List<Ticket> tickets, TicketPurchase purchase, String totalPaid) {
+        if (tickets == null || tickets.isEmpty()) {
+            AlertHelper.showError("Ticket Error", "No tickets were created.");
+            return;
+        }
+
+        Ticket firstTicket = tickets.get(0);
+
         VBox page = new VBox();
         page.setAlignment(Pos.TOP_CENTER);
         page.setPadding(new Insets(14));
@@ -241,10 +251,11 @@ public class TicketSalesView {
         card.getStyleClass().addAll("event-card", "purchase-success-card");
 
         card.getChildren().addAll(
-                buildSuccessHeader(),
+                buildSuccessHeader(tickets.size()),
                 new Separator(),
-                buildSuccessBody(ticket, purchase, totalPaid),
-                buildTicketIdStrip(ticket),
+                buildSuccessBody(firstTicket, purchase, totalPaid),
+                buildTicketCountStrip(tickets.size()),
+                buildTicketIdList(tickets),
                 buildSuccessBackButton()
         );
 
@@ -256,7 +267,7 @@ public class TicketSalesView {
         mainView.setContent(scrollPane);
     }
 
-    private VBox buildSuccessHeader() {
+    private VBox buildSuccessHeader(int ticketCount) {
         StackPane iconCircle = new StackPane();
         iconCircle.getStyleClass().add("success-icon-circle");
         iconCircle.setPrefSize(64, 64);
@@ -268,7 +279,11 @@ public class TicketSalesView {
         Label title = new Label("Purchase Successful!");
         title.getStyleClass().add("success-title");
 
-        Label subtitle = new Label("Your ticket has been generated");
+        String subtitleText = ticketCount == 1
+                ? "Your ticket has been generated"
+                : ticketCount + " tickets have been generated";
+
+        Label subtitle = new Label(subtitleText);
         subtitle.getStyleClass().add("success-subtitle");
 
         VBox header = new VBox(10, iconCircle, title, subtitle);
@@ -330,6 +345,11 @@ public class TicketSalesView {
         qrView.setFitHeight(200);
         qrView.setPreserveRatio(true);
 
+        ImageView barcodeView = new ImageView(new Image(new ByteArrayInputStream(ticket.getBarcodeImage())));
+        barcodeView.setFitWidth(260);
+        barcodeView.setFitHeight(80);
+        barcodeView.setPreserveRatio(true);
+
         VBox qrBox = new VBox(10);
         qrBox.setAlignment(Pos.CENTER);
         qrBox.getStyleClass().add("ticket-qr-box");
@@ -337,7 +357,7 @@ public class TicketSalesView {
         Label qrHint = new Label("Scan this QR code at the venue");
         qrHint.getStyleClass().add("qr-hint");
 
-        qrBox.getChildren().addAll(qrView, qrHint);
+        qrBox.getChildren().addAll(qrView, qrHint, barcodeView);
 
         VBox summaryBox = new VBox(
                 14,
@@ -350,6 +370,39 @@ public class TicketSalesView {
         VBox right = new VBox(18, qrBox, summaryBox);
         right.setPrefWidth(280);
         return right;
+    }
+
+    private Label buildTicketCountStrip(int ticketCount) {
+        String text = ticketCount == 1
+                ? "1 ticket created"
+                : ticketCount + " tickets created";
+
+        Label label = new Label(text);
+        label.setAlignment(Pos.CENTER);
+        label.setMaxWidth(Double.MAX_VALUE);
+        label.getStyleClass().add("ticket-id-strip");
+        return label;
+    }
+
+    private VBox buildTicketIdList(List<Ticket> tickets) {
+        VBox ticketListBox = new VBox(8);
+
+        Label heading = new Label("Generated Ticket IDs");
+        heading.getStyleClass().add("success-section-title");
+
+        ticketListBox.getChildren().add(heading);
+
+        for (int i = 0; i < tickets.size(); i++) {
+            Ticket ticket = tickets.get(i);
+
+            Label ticketIdLabel = new Label("Ticket " + (i + 1) + ": " + ticket.getTicketId());
+            ticketIdLabel.setWrapText(true);
+            ticketIdLabel.getStyleClass().add("ticket-id-strip");
+
+            ticketListBox.getChildren().add(ticketIdLabel);
+        }
+
+        return ticketListBox;
     }
 
     private VBox createLabeledValue(String labelText, String valueText) {
@@ -386,14 +439,6 @@ public class TicketSalesView {
         HBox row = new HBox(10, label, grow(), value);
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
-    }
-
-    private Label buildTicketIdStrip(Ticket ticket) {
-        Label ticketIdLabel = new Label("Ticket ID: " + ticket.getTicketId());
-        ticketIdLabel.setAlignment(Pos.CENTER);
-        ticketIdLabel.setMaxWidth(Double.MAX_VALUE);
-        ticketIdLabel.getStyleClass().add("ticket-id-strip");
-        return ticketIdLabel;
     }
 
     private Button buildSuccessBackButton() {

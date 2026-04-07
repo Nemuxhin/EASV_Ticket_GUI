@@ -5,6 +5,9 @@ import easv.be.Event;
 import easv.be.Ticket;
 import easv.dal.TicketDAO;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class TicketManager {
 
     private final TicketDAO ticketDAO;
@@ -13,17 +16,10 @@ public class TicketManager {
     private final BarcodeGenerator barcodeGenerator;
 
     public TicketManager() {
-        this(new TicketDAO(), new TokenGenerator(), new QrCodeGenerator(), new BarcodeGenerator());
-    }
-
-    public TicketManager(TicketDAO ticketDAO,
-                         TokenGenerator tokenGenerator,
-                         QrCodeGenerator qrCodeGenerator,
-                         BarcodeGenerator barcodeGenerator) {
-        this.ticketDAO = ticketDAO;
-        this.tokenGenerator = tokenGenerator;
-        this.qrCodeGenerator = qrCodeGenerator;
-        this.barcodeGenerator = barcodeGenerator;
+        this.ticketDAO = new TicketDAO();
+        this.tokenGenerator = new TokenGenerator();
+        this.qrCodeGenerator = new QrCodeGenerator();
+        this.barcodeGenerator = new BarcodeGenerator();
     }
 
     public Ticket createEventTicket(Event event,
@@ -33,24 +29,14 @@ public class TicketManager {
                                     String price,
                                     String endDateTime,
                                     String locationGuidance) {
-
-        if (event == null) {
-            throw new IllegalArgumentException("Event cannot be null.");
-        }
-
-        if (customer == null) {
-            throw new IllegalArgumentException("Customer cannot be null.");
-        }
-
-        String ticketId = tokenGenerator.generateTicketId();
-        String secureToken = tokenGenerator.generateSecureToken();
+        validateEventTicketInput(event, customer, ticketType, price);
 
         return buildAndSaveTicket(
-                ticketId,
-                secureToken,
+                tokenGenerator.generateTicketId(),
+                tokenGenerator.generateSecureToken(),
                 customer,
                 event.getTitle(),
-                event.getDate(),
+                event.getStartDateTime(),
                 endDateTime,
                 event.getLocation(),
                 locationGuidance,
@@ -63,6 +49,43 @@ public class TicketManager {
         );
     }
 
+    public List<Ticket> createEventTickets(Event event,
+                                           Customer customer,
+                                           String ticketType,
+                                           String ticketDescription,
+                                           String pricePerTicket,
+                                           String endDateTime,
+                                           String locationGuidance,
+                                           int quantity) {
+        validateEventTicketInput(event, customer, ticketType, pricePerTicket);
+        validateQuantity(quantity);
+
+        List<Ticket> createdTickets = new ArrayList<>();
+
+        for (int i = 0; i < quantity; i++) {
+            Ticket ticket = buildAndSaveTicket(
+                    tokenGenerator.generateTicketId(),
+                    tokenGenerator.generateSecureToken(),
+                    customer,
+                    event.getTitle(),
+                    event.getStartDateTime(),
+                    endDateTime,
+                    event.getLocation(),
+                    locationGuidance,
+                    event.getNotes(),
+                    ticketType,
+                    ticketDescription,
+                    pricePerTicket,
+                    false,
+                    false
+            );
+
+            createdTickets.add(ticket);
+        }
+
+        return createdTickets;
+    }
+
     public Ticket createSpecialTicket(String eventTitle,
                                       String eventStartDateTime,
                                       String eventEndDateTime,
@@ -73,15 +96,13 @@ public class TicketManager {
                                       String ticketDescription,
                                       String price,
                                       boolean validForAllEvents) {
-
-        String ticketId = tokenGenerator.generateTicketId();
-        String secureToken = tokenGenerator.generateSecureToken();
+        validateSpecialTicketInput(eventTitle, ticketType, price, validForAllEvents);
 
         return buildAndSaveTicket(
-                ticketId,
-                secureToken,
+                tokenGenerator.generateTicketId(),
+                tokenGenerator.generateSecureToken(),
                 null,
-                eventTitle,
+                normalizeEventTitle(eventTitle, validForAllEvents),
                 eventStartDateTime,
                 eventEndDateTime,
                 eventLocation,
@@ -93,6 +114,46 @@ public class TicketManager {
                 true,
                 validForAllEvents
         );
+    }
+
+    public List<Ticket> createSpecialTickets(String eventTitle,
+                                             String eventStartDateTime,
+                                             String eventEndDateTime,
+                                             String eventLocation,
+                                             String eventLocationGuidance,
+                                             String eventNotes,
+                                             String ticketType,
+                                             String ticketDescription,
+                                             String price,
+                                             boolean validForAllEvents,
+                                             int quantity) {
+        validateSpecialTicketInput(eventTitle, ticketType, price, validForAllEvents);
+        validateQuantity(quantity);
+
+        List<Ticket> createdTickets = new ArrayList<>();
+
+        for (int i = 0; i < quantity; i++) {
+            Ticket ticket = buildAndSaveTicket(
+                    tokenGenerator.generateTicketId(),
+                    tokenGenerator.generateSecureToken(),
+                    null,
+                    normalizeEventTitle(eventTitle, validForAllEvents),
+                    eventStartDateTime,
+                    eventEndDateTime,
+                    eventLocation,
+                    eventLocationGuidance,
+                    eventNotes,
+                    ticketType,
+                    ticketDescription,
+                    price,
+                    true,
+                    validForAllEvents
+            );
+
+            createdTickets.add(ticket);
+        }
+
+        return createdTickets;
     }
 
     private Ticket buildAndSaveTicket(String ticketId,
@@ -137,13 +198,39 @@ public class TicketManager {
         return ticket;
     }
 
+    public List<Ticket> getAllTickets() {
+        return ticketDAO.getAllTickets();
+    }
+
     public Ticket findByToken(String secureToken) {
         return ticketDAO.findByToken(secureToken);
+    }
+
+    public Ticket findByTicketId(String ticketId) {
+        return ticketDAO.findByTicketId(ticketId);
+    }
+
+    public List<Ticket> getTicketsByCustomerEmail(String customerEmail) {
+        return ticketDAO.findByCustomerEmail(customerEmail);
     }
 
     public boolean isTicketValid(String secureToken) {
         Ticket ticket = ticketDAO.findByToken(secureToken);
         return ticket != null && !ticket.isUsed();
+    }
+
+    public boolean isTicketValid(String secureToken, String eventTitle) {
+        Ticket ticket = ticketDAO.findByToken(secureToken);
+
+        if (ticket == null || ticket.isUsed()) {
+            return false;
+        }
+
+        if (eventTitle == null || eventTitle.isBlank()) {
+            return true;
+        }
+
+        return ticket.matchesEvent(eventTitle);
     }
 
     public boolean markTicketAsUsed(String secureToken) {
@@ -154,7 +241,57 @@ public class TicketManager {
         }
 
         ticket.setUsed(true);
-        // also persist to DAO here if you have an update method
-        return true;
+        return ticketDAO.updateTicket(ticket);
+    }
+
+    private void validateEventTicketInput(Event event,
+                                          Customer customer,
+                                          String ticketType,
+                                          String price) {
+        if (event == null) {
+            throw new IllegalArgumentException("Event cannot be null.");
+        }
+
+        if (customer == null) {
+            throw new IllegalArgumentException("Customer cannot be null.");
+        }
+
+        if (ticketType == null || ticketType.isBlank()) {
+            throw new IllegalArgumentException("Ticket type cannot be blank.");
+        }
+
+        if (price == null || price.isBlank()) {
+            throw new IllegalArgumentException("Price cannot be blank.");
+        }
+    }
+
+    private void validateSpecialTicketInput(String eventTitle,
+                                            String ticketType,
+                                            String price,
+                                            boolean validForAllEvents) {
+        if (!validForAllEvents && (eventTitle == null || eventTitle.isBlank())) {
+            throw new IllegalArgumentException("Event title is required unless the ticket is valid for all events.");
+        }
+
+        if (ticketType == null || ticketType.isBlank()) {
+            throw new IllegalArgumentException("Ticket type cannot be blank.");
+        }
+
+        if (price == null || price.isBlank()) {
+            throw new IllegalArgumentException("Price cannot be blank.");
+        }
+    }
+
+    private void validateQuantity(int quantity) {
+        if (quantity < 1) {
+            throw new IllegalArgumentException("Quantity must be at least 1.");
+        }
+    }
+
+    private String normalizeEventTitle(String eventTitle, boolean validForAllEvents) {
+        if (validForAllEvents && (eventTitle == null || eventTitle.isBlank())) {
+            return "All Events";
+        }
+        return eventTitle;
     }
 }
