@@ -20,6 +20,7 @@ import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -27,8 +28,10 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.io.ByteArrayInputStream;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 public class TicketSalesView {
@@ -110,18 +113,29 @@ public class TicketSalesView {
         emailField.setPromptText("customer@example.com");
         emailField.getStyleClass().add("input-field");
 
-        StringProperty selectedType = new SimpleStringProperty("STANDARD");
+        LinkedHashMap<String, String> ticketTypePrices = ticketController.getTicketTypePricesForEvent(event);
+
+        String defaultType = ticketTypePrices.keySet().iterator().next();
+        StringProperty selectedType = new SimpleStringProperty(defaultType);
         IntegerProperty quantity = new SimpleIntegerProperty(1);
 
-        VBox standardCard = createTicketTypeCard("Standard", calculateTypePrice("STANDARD"), "", true);
-        VBox vipCard = createTicketTypeCard("VIP", calculateTypePrice("VIP"), "+50%", false);
-        VBox studentCard = createTicketTypeCard("Student", calculateTypePrice("STUDENT"), "-30%", false);
+        FlowPane ticketTypeGrid = new FlowPane();
+        ticketTypeGrid.setHgap(16);
+        ticketTypeGrid.setVgap(16);
+        ticketTypeGrid.setPrefWrapLength(1000);
 
-        standardCard.setOnMouseClicked(e -> selectTicketType(selectedType, "STANDARD", standardCard, vipCard, studentCard));
-        vipCard.setOnMouseClicked(e -> selectTicketType(selectedType, "VIP", vipCard, standardCard, studentCard));
-        studentCard.setOnMouseClicked(e -> selectTicketType(selectedType, "STUDENT", studentCard, standardCard, vipCard));
+        Map<String, VBox> cardMap = new LinkedHashMap<>();
 
-        HBox ticketTypeRow = new HBox(16, standardCard, vipCard, studentCard);
+        for (Map.Entry<String, String> entry : ticketTypePrices.entrySet()) {
+            String typeName = entry.getKey();
+            String priceLabel = entry.getValue();
+
+            VBox typeCard = createTicketTypeCard(typeName, priceLabel, typeName.equals(defaultType));
+            typeCard.setOnMouseClicked(e -> selectTicketType(selectedType, typeName, typeCard, cardMap));
+
+            cardMap.put(typeName, typeCard);
+            ticketTypeGrid.getChildren().add(typeCard);
+        }
 
         Label quantityLabel = styleLabel("1", "card-title");
         quantityLabel.textProperty().bind(quantity.asString());
@@ -142,12 +156,12 @@ public class TicketSalesView {
         quantityBox.setAlignment(Pos.CENTER_LEFT);
 
         Label totalLabel = styleLabel(
-                formatPrice(eventController.calculateTotalPrice(event, selectedType.get(), quantity.get())),
+                formatPrice(parsePriceValue(ticketTypePrices.get(selectedType.get())) * quantity.get()),
                 "page-title"
         );
 
         Runnable refreshTotal = () -> totalLabel.setText(
-                formatPrice(eventController.calculateTotalPrice(event, selectedType.get(), quantity.get()))
+                formatPrice(parsePriceValue(ticketTypePrices.get(selectedType.get())) * quantity.get())
         );
 
         selectedType.addListener((obs, oldValue, newValue) -> refreshTotal.run());
@@ -161,15 +175,22 @@ public class TicketSalesView {
                         nameField.getText().trim(),
                         emailField.getText().trim(),
                         selectedType.get(),
-                        quantity.get()
+                        quantity.get(),
+                        ticketTypePrices
                 )
+        );
+
+        Label helperText = styleLabel(
+                "Ticket types below include the event's default tickets and any special tickets created for this event.",
+                "card-text"
         );
 
         formCard.getChildren().addAll(
                 createField("Full Name", nameField),
                 createField("Email", emailField),
                 styleLabel("Select Ticket Type", "notes-head"),
-                ticketTypeRow,
+                helperText,
+                ticketTypeGrid,
                 createField("Quantity", quantityBox),
                 new Separator(),
                 new HBox(12, styleLabel("Total Price", "card-text"), grow(), totalLabel),
@@ -193,19 +214,27 @@ public class TicketSalesView {
         return box;
     }
 
-    private void handlePurchase(String customerName, String customerEmail, String ticketType, int quantity) {
-        String validation = eventController.validatePurchase(customerName, customerEmail, ticketType, quantity);
+    private void handlePurchase(String customerName,
+                                String customerEmail,
+                                String ticketType,
+                                int quantity,
+                                LinkedHashMap<String, String> ticketTypePrices) {
+        String validation = validatePurchaseInput(customerName, customerEmail, ticketType, quantity, ticketTypePrices);
         if (validation != null) {
             AlertHelper.showError("Invalid Purchase", validation);
             return;
         }
 
-        TicketPurchase purchase = eventController.createTicketPurchase(
+        String pricePerTicket = ticketTypePrices.get(ticketType);
+        double totalValue = parsePriceValue(pricePerTicket) * quantity;
+
+        TicketPurchase purchase = new TicketPurchase(
                 event,
                 customerName,
                 customerEmail,
                 ticketType,
-                quantity
+                quantity,
+                totalValue
         );
 
         Customer customer = new Customer(
@@ -214,22 +243,46 @@ public class TicketSalesView {
                 purchase.getCustomerEmail()
         );
 
-        String singleTicketPrice = formatPrice(
-                eventController.calculateTotalPrice(event, purchase.getTicketType(), 1)
-        );
-
         List<Ticket> tickets = ticketController.createEventTickets(
                 event,
                 customer,
                 purchase.getTicketType(),
                 describeTicketType(purchase.getTicketType()),
-                singleTicketPrice,
+                pricePerTicket,
                 event.getEndDateTime(),
                 event.getLocationGuidance(),
                 purchase.getQuantity()
         );
 
         showSuccess(tickets, purchase, formatPrice(purchase.getTotalPrice()));
+    }
+
+    private String validatePurchaseInput(String customerName,
+                                         String customerEmail,
+                                         String ticketType,
+                                         int quantity,
+                                         LinkedHashMap<String, String> ticketTypePrices) {
+        StringBuilder message = new StringBuilder();
+
+        if (customerName == null || customerName.isBlank()) {
+            message.append("- Customer name is required.\n");
+        }
+
+        if (customerEmail == null || customerEmail.isBlank()) {
+            message.append("- Email is required.\n");
+        } else if (!customerEmail.contains("@") || !customerEmail.contains(".")) {
+            message.append("- Email must be valid.\n");
+        }
+
+        if (ticketType == null || ticketType.isBlank() || !ticketTypePrices.containsKey(ticketType)) {
+            message.append("- Please select a valid ticket type.\n");
+        }
+
+        if (quantity < 1) {
+            message.append("- Quantity must be at least 1.\n");
+        }
+
+        return message.isEmpty() ? null : message.toString().trim();
     }
 
     private void showSuccess(List<Ticket> tickets, TicketPurchase purchase, String totalPaid) {
@@ -361,7 +414,7 @@ public class TicketSalesView {
 
         VBox summaryBox = new VBox(
                 14,
-                createSummaryRow("Ticket Type:", formatTicketType(purchase.getTicketType()), false),
+                createSummaryRow("Ticket Type:", purchase.getTicketType(), false),
                 createSummaryRow("Quantity:", String.valueOf(purchase.getQuantity()), false),
                 createSummaryRow("Total Paid:", totalPaid, true)
         );
@@ -449,52 +502,63 @@ public class TicketSalesView {
         return backButton;
     }
 
-    private VBox createTicketTypeCard(String title, String price, String modifier, boolean selected) {
+    private VBox createTicketTypeCard(String title, String price, boolean selected) {
         VBox card = new VBox(10);
         card.setAlignment(Pos.CENTER);
         card.setPadding(new Insets(18));
         card.getStyleClass().add(selected ? "ticket-type-selected" : "ticket-type");
-        card.setMaxWidth(Double.MAX_VALUE);
-
-        HBox.setHgrow(card, Priority.ALWAYS);
+        card.setPrefWidth(240);
 
         card.getChildren().addAll(
                 styleLabel(title, "card-title"),
                 styleLabel(price, "card-text")
         );
 
-        if (!modifier.isBlank()) {
-            card.getChildren().add(styleLabel(modifier, "card-text"));
-        }
-
         return card;
     }
 
-    private void selectTicketType(StringProperty selectedType, String nextType, VBox selectedCard, VBox otherCardA, VBox otherCardB) {
+    private void selectTicketType(StringProperty selectedType,
+                                  String nextType,
+                                  VBox selectedCard,
+                                  Map<String, VBox> cardMap) {
         selectedType.set(nextType);
-        selectedCard.getStyleClass().setAll("ticket-type-selected");
-        otherCardA.getStyleClass().setAll("ticket-type");
-        otherCardB.getStyleClass().setAll("ticket-type");
-    }
 
-    private String calculateTypePrice(String type) {
-        return formatPrice(eventController.calculateTotalPrice(event, type, 1));
+        for (VBox card : cardMap.values()) {
+            card.getStyleClass().setAll("ticket-type");
+        }
+
+        selectedCard.getStyleClass().setAll("ticket-type-selected");
     }
 
     private String describeTicketType(String ticketType) {
-        return switch (ticketType.toUpperCase(Locale.ENGLISH)) {
+        if (ticketType == null || ticketType.isBlank()) {
+            return "Ticket access";
+        }
+
+        return switch (ticketType.trim().toUpperCase(Locale.ENGLISH)) {
             case "VIP" -> "VIP access";
             case "STUDENT" -> "Student access";
-            default -> "Standard access";
+            case "STANDARD" -> "Standard access";
+            default -> ticketType.trim();
         };
     }
 
-    private String formatTicketType(String ticketType) {
-        return switch (ticketType.toUpperCase(Locale.ENGLISH)) {
-            case "VIP" -> "VIP";
-            case "STUDENT" -> "Student";
-            default -> "Standard";
-        };
+    private double parsePriceValue(String rawPrice) {
+        if (rawPrice == null || rawPrice.isBlank() || "Free".equalsIgnoreCase(rawPrice.trim())) {
+            return 0;
+        }
+
+        String cleaned = rawPrice
+                .replace("DKK", "")
+                .replace("dkk", "")
+                .replace(",", ".")
+                .trim();
+
+        if (cleaned.isBlank()) {
+            return 0;
+        }
+
+        return Double.parseDouble(cleaned);
     }
 
     private String formatPrice(double amount) {

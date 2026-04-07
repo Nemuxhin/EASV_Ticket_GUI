@@ -5,6 +5,7 @@ import easv.be.Event;
 import easv.be.Ticket;
 import easv.bll.TicketManager;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 
 public class TicketController {
@@ -103,8 +104,20 @@ public class TicketController {
         );
     }
 
+    public LinkedHashMap<String, String> getTicketTypePricesForEvent(Event event) {
+        return ticketManager.getTicketTypePricesForEvent(event);
+    }
+
     public List<Ticket> getAllTickets() {
         return ticketManager.getAllTickets();
+    }
+
+    public List<Ticket> getSpecialTickets() {
+        return ticketManager.getSpecialTickets();
+    }
+
+    public boolean deactivateSpecialTicketGroup(String ticketGroupId) {
+        return ticketManager.deactivateSpecialTicketGroup(ticketGroupId);
     }
 
     public Ticket findByToken(String secureToken) {

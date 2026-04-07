@@ -16,16 +16,6 @@ public class TicketDAO {
         tickets.add(ticket);
     }
 
-    public void addTickets(List<Ticket> ticketsToAdd) {
-        if (ticketsToAdd == null || ticketsToAdd.isEmpty()) {
-            return;
-        }
-
-        for (Ticket ticket : ticketsToAdd) {
-            addTicket(ticket);
-        }
-    }
-
     public List<Ticket> getAllTickets() {
         return new ArrayList<>(tickets);
     }
@@ -43,29 +33,15 @@ public class TicketDAO {
         return null;
     }
 
-    public Ticket findByTicketId(String ticketId) {
-        if (ticketId == null || ticketId.isBlank()) {
-            return null;
-        }
-
-        for (Ticket ticket : tickets) {
-            if (ticketId.equals(ticket.getTicketId())) {
-                return ticket;
-            }
-        }
-        return null;
-    }
-
-    public List<Ticket> findByCustomerEmail(String customerEmail) {
+    public List<Ticket> findByGroupId(String ticketGroupId) {
         List<Ticket> result = new ArrayList<>();
 
-        if (customerEmail == null || customerEmail.isBlank()) {
+        if (ticketGroupId == null || ticketGroupId.isBlank()) {
             return result;
         }
 
         for (Ticket ticket : tickets) {
-            if (ticket.hasCustomer()
-                    && customerEmail.equalsIgnoreCase(ticket.getCustomer().getEmail())) {
+            if (ticketGroupId.equals(ticket.getTicketGroupId())) {
                 result.add(ticket);
             }
         }

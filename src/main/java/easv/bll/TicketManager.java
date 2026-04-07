@@ -6,7 +6,10 @@ import easv.be.Ticket;
 import easv.dal.TicketDAO;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class TicketManager {
 
@@ -31,8 +34,11 @@ public class TicketManager {
                                     String locationGuidance) {
         validateEventTicketInput(event, customer, ticketType, price);
 
+        String ticketId = tokenGenerator.generateTicketId();
+
         return buildAndSaveTicket(
-                tokenGenerator.generateTicketId(),
+                ticketId,
+                ticketId,
                 tokenGenerator.generateSecureToken(),
                 customer,
                 event.getTitle(),
@@ -63,8 +69,11 @@ public class TicketManager {
         List<Ticket> createdTickets = new ArrayList<>();
 
         for (int i = 0; i < quantity; i++) {
+            String ticketId = tokenGenerator.generateTicketId();
+
             Ticket ticket = buildAndSaveTicket(
-                    tokenGenerator.generateTicketId(),
+                    ticketId,
+                    ticketId,
                     tokenGenerator.generateSecureToken(),
                     customer,
                     event.getTitle(),
@@ -98,8 +107,12 @@ public class TicketManager {
                                       boolean validForAllEvents) {
         validateSpecialTicketInput(eventTitle, ticketType, price, validForAllEvents);
 
+        String ticketId = tokenGenerator.generateTicketId();
+        String ticketGroupId = tokenGenerator.generateSecureToken();
+
         return buildAndSaveTicket(
-                tokenGenerator.generateTicketId(),
+                ticketId,
+                ticketGroupId,
                 tokenGenerator.generateSecureToken(),
                 null,
                 normalizeEventTitle(eventTitle, validForAllEvents),
@@ -131,10 +144,14 @@ public class TicketManager {
         validateQuantity(quantity);
 
         List<Ticket> createdTickets = new ArrayList<>();
+        String ticketGroupId = tokenGenerator.generateSecureToken();
 
         for (int i = 0; i < quantity; i++) {
+            String ticketId = tokenGenerator.generateTicketId();
+
             Ticket ticket = buildAndSaveTicket(
-                    tokenGenerator.generateTicketId(),
+                    ticketId,
+                    ticketGroupId,
                     tokenGenerator.generateSecureToken(),
                     null,
                     normalizeEventTitle(eventTitle, validForAllEvents),
@@ -156,7 +173,126 @@ public class TicketManager {
         return createdTickets;
     }
 
+    public List<Ticket> getAllTickets() {
+        return ticketDAO.getAllTickets();
+    }
+
+    public List<Ticket> getSpecialTickets() {
+        List<Ticket> result = new ArrayList<>();
+
+        for (Ticket ticket : ticketDAO.getAllTickets()) {
+            if (ticket.isSpecialTicket()) {
+                result.add(ticket);
+            }
+        }
+
+        return result;
+    }
+
+    public boolean deactivateSpecialTicketGroup(String ticketGroupId) {
+        List<Ticket> ticketsInGroup = ticketDAO.findByGroupId(ticketGroupId);
+
+        if (ticketsInGroup.isEmpty()) {
+            return false;
+        }
+
+        boolean changed = false;
+
+        for (Ticket ticket : ticketsInGroup) {
+            if (ticket.isSpecialTicket() && ticket.isActive()) {
+                ticket.setActive(false);
+                boolean updated = ticketDAO.updateTicket(ticket);
+                changed = changed || updated;
+            }
+        }
+
+        return changed;
+    }
+
+    public LinkedHashMap<String, String> getTicketTypePricesForEvent(Event event) {
+        if (event == null) {
+            throw new IllegalArgumentException("Event cannot be null.");
+        }
+
+        LinkedHashMap<String, String> ticketTypePrices = new LinkedHashMap<>();
+
+        double basePrice = parsePriceValue(event.getPrice());
+
+        ticketTypePrices.put("Standard", formatPrice(basePrice));
+        ticketTypePrices.put("VIP", formatPrice(basePrice * 1.5));
+        ticketTypePrices.put("Student", formatPrice(basePrice * 0.7));
+
+        LinkedHashMap<String, List<Ticket>> groupedSpecialTickets = groupSpecialTicketsByBatch();
+
+        for (List<Ticket> group : groupedSpecialTickets.values()) {
+            if (group.isEmpty()) {
+                continue;
+            }
+
+            Ticket representative = group.get(0);
+
+            if (!representative.isActive()) {
+                continue;
+            }
+
+            if (!representative.isValidForAllEvents() && !sameEventTitle(representative.getEventTitle(), event.getTitle())) {
+                continue;
+            }
+
+            int remainingCount = countRemainingTickets(group);
+            if (remainingCount <= 0) {
+                continue;
+            }
+
+            String typeName = safeTicketTypeName(representative.getTicketType());
+            if (!ticketTypePrices.containsKey(typeName)) {
+                ticketTypePrices.put(typeName, normalizePrice(representative.getPrice()));
+            }
+        }
+
+        return ticketTypePrices;
+    }
+
+    public Ticket findByToken(String secureToken) {
+        return ticketDAO.findByToken(secureToken);
+    }
+
+    public boolean isTicketValid(String secureToken) {
+        Ticket ticket = ticketDAO.findByToken(secureToken);
+        return ticket != null && ticket.isActive() && !ticket.isUsed();
+    }
+
+    public boolean isTicketValid(String secureToken, String eventTitle) {
+        Ticket ticket = ticketDAO.findByToken(secureToken);
+
+        if (ticket == null || !ticket.isActive() || ticket.isUsed()) {
+            return false;
+        }
+
+        if (ticket.isValidForAllEvents()) {
+            return true;
+        }
+
+        if (eventTitle == null || eventTitle.isBlank()) {
+            return true;
+        }
+
+        return sameEventTitle(ticket.getEventTitle(), eventTitle);
+    }
+
+    public boolean markTicketAsUsed(String secureToken) {
+        Ticket ticket = ticketDAO.findByToken(secureToken);
+
+        if (ticket == null || !ticket.isActive() || ticket.isUsed()) {
+            return false;
+        }
+
+        ticket.setUsed(true);
+        return ticketDAO.updateTicket(ticket);
+    }
+
     private Ticket buildAndSaveTicket(String ticketId,
+                                      String ticketGroupId,
                                       String secureToken,
                                       Customer customer,
                                       String eventTitle,
@@ -176,8 +312,10 @@ public class TicketManager {
 
         Ticket ticket = new Ticket(
                 ticketId,
+                ticketGroupId,
                 secureToken,
                 false,
+                true,
                 customer,
                 eventTitle,
                 eventStartDateTime,
@@ -198,47 +336,31 @@ public class TicketManager {
         return ticket;
     }
 
-    public List<Ticket> getAllTickets() {
-        return ticketDAO.getAllTickets();
-    }
+    private LinkedHashMap<String, List<Ticket>> groupSpecialTicketsByBatch() {
+        LinkedHashMap<String, List<Ticket>> grouped = new LinkedHashMap<>();
 
-    public Ticket findByToken(String secureToken) {
-        return ticketDAO.findByToken(secureToken);
-    }
+        for (Ticket ticket : ticketDAO.getAllTickets()) {
+            if (!ticket.isSpecialTicket()) {
+                continue;
+            }
 
-    public boolean isTicketValid(String secureToken) {
-        Ticket ticket = ticketDAO.findByToken(secureToken);
-        return ticket != null && !ticket.isUsed();
-    }
-
-    public boolean isTicketValid(String secureToken, String eventTitle) {
-        Ticket ticket = ticketDAO.findByToken(secureToken);
-
-        if (ticket == null || ticket.isUsed()) {
-            return false;
+            String key = ticket.getTicketGroupId();
+            grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(ticket);
         }
 
-        if (ticket.isValidForAllEvents()) {
-            return true;
-        }
-
-        if (eventTitle == null || eventTitle.isBlank()) {
-            return true;
-        }
-
-        return ticket.getEventTitle() != null
-                && ticket.getEventTitle().trim().equalsIgnoreCase(eventTitle.trim());
+        return grouped;
     }
 
-    public boolean markTicketAsUsed(String secureToken) {
-        Ticket ticket = ticketDAO.findByToken(secureToken);
+    private int countRemainingTickets(List<Ticket> tickets) {
+        int count = 0;
 
-        if (ticket == null || ticket.isUsed()) {
-            return false;
+        for (Ticket ticket : tickets) {
+            if (ticket.isActive() && !ticket.isUsed()) {
+                count++;
+            }
         }
 
-        ticket.setUsed(true);
-        return true;
+        return count;
     }
 
     private void validateEventTicketInput(Event event,
@@ -290,5 +412,51 @@ public class TicketManager {
             return "All Events";
         }
         return eventTitle;
+    }
+
+    private String safeTicketTypeName(String ticketType) {
+        if (ticketType == null || ticketType.isBlank()) {
+            return "Special Ticket";
+        }
+        return ticketType.trim();
+    }
+
+    private boolean sameEventTitle(String first, String second) {
+        if (first == null || second == null) {
+            return false;
+        }
+        return first.trim().equalsIgnoreCase(second.trim());
+    }
+
+    private String normalizePrice(String rawPrice) {
+        return formatPrice(parsePriceValue(rawPrice));
+    }
+
+    private double parsePriceValue(String rawPrice) {
+        if (rawPrice == null || rawPrice.isBlank() || "Free".equalsIgnoreCase(rawPrice.trim())) {
+            return 0;
+        }
+
+        String cleaned = rawPrice
+                .replace("DKK", "")
+                .replace("dkk", "")
+                .replace(",", ".")
+                .trim();
+
+        if (cleaned.isBlank()) {
+            return 0;
+        }
+
+        return Double.parseDouble(cleaned);
+    }
+
+    private String formatPrice(double amount) {
+        if (amount == 0) {
+            return "Free";
+        }
+        if (amount == Math.floor(amount)) {
+            return String.format(Locale.ENGLISH, "%.0f DKK", amount);
+        }
+        return String.format(Locale.ENGLISH, "%.2f DKK", amount);
     }
 }

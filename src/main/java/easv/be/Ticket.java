@@ -2,8 +2,10 @@ package easv.be;
 
 public class Ticket {
     private String ticketId;
+    private String ticketGroupId;
     private String secureToken;
     private boolean used;
+    private boolean active;
 
     private Customer customer;
 
@@ -25,8 +27,10 @@ public class Ticket {
     private byte[] barcodeImage;
 
     public Ticket(String ticketId,
+                  String ticketGroupId,
                   String secureToken,
                   boolean used,
+                  boolean active,
                   Customer customer,
                   String eventTitle,
                   String eventStartDateTime,
@@ -42,8 +46,10 @@ public class Ticket {
                   byte[] qrImage,
                   byte[] barcodeImage) {
         this.ticketId = ticketId;
+        this.ticketGroupId = ticketGroupId;
         this.secureToken = secureToken;
         this.used = used;
+        this.active = active;
         this.customer = customer;
         this.eventTitle = eventTitle;
         this.eventStartDateTime = eventStartDateTime;
@@ -64,12 +70,20 @@ public class Ticket {
         return ticketId;
     }
 
+    public String getTicketGroupId() {
+        return ticketGroupId;
+    }
+
     public String getSecureToken() {
         return secureToken;
     }
 
     public boolean isUsed() {
         return used;
+    }
+
+    public boolean isActive() {
+        return active;
     }
 
     public Customer getCustomer() {
@@ -130,6 +144,10 @@ public class Ticket {
 
     public void setUsed(boolean used) {
         this.used = used;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 
     public boolean hasCustomer() {
