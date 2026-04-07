@@ -170,3 +170,122 @@
     -fx-text-fill: #1A202C;
     -fx-background-color: transparent;
 }
+.purchase-success-card {
+    -fx-background-color: #fdfdfd;
+    -fx-background-radius: 16;
+    -fx-border-color: #d7dbe2;
+    -fx-border-radius: 16;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.08), 12, 0.15, 0, 2);
+}
+
+.success-icon-circle {
+    -fx-background-color: #d9f4df;
+    -fx-background-radius: 999;
+    -fx-min-width: 64;
+    -fx-min-height: 64;
+    -fx-max-width: 64;
+    -fx-max-height: 64;
+    -fx-alignment: center;
+}
+
+.success-icon {
+    -fx-font-size: 28px;
+    -fx-text-fill: #20a751;
+    -fx-font-weight: bold;
+}
+
+.success-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0d1b3d;
+}
+
+.success-subtitle {
+    -fx-font-size: 14px;
+    -fx-text-fill: #6b7280;
+}
+
+.success-section-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #111827;
+}
+
+.success-field-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: #4b5563;
+}
+
+.success-field-value {
+    -fx-font-size: 17px;
+    -fx-font-weight: 500;
+    -fx-text-fill: #0f172a;
+}
+
+.success-row-icon {
+    -fx-font-size: 14px;
+}
+
+.success-row-text {
+    -fx-font-size: 14px;
+    -fx-text-fill: #334155;
+}
+
+.ticket-qr-box {
+    -fx-background-color: white;
+    -fx-border-color: #d9dee7;
+    -fx-border-radius: 12;
+    -fx-background-radius: 12;
+    -fx-padding: 14;
+}
+
+.qr-hint {
+    -fx-font-size: 12px;
+    -fx-text-fill: #6b7280;
+}
+
+.ticket-summary-box {
+    -fx-background-color: #f4f5f7;
+    -fx-background-radius: 12;
+    -fx-padding: 16;
+}
+
+.summary-label {
+    -fx-font-size: 14px;
+    -fx-text-fill: #334155;
+}
+
+.summary-value {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #0f172a;
+}
+
+.summary-value-highlight {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #eb6d5b;
+}
+
+.ticket-id-strip {
+    -fx-background-color: #f1f3f5;
+    -fx-background-radius: 10;
+    -fx-padding: 12 16 12 16;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #475569;
+}
+
+.success-back-btn {
+    -fx-background-color: #e86c5b;
+    -fx-text-fill: white;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 10;
+    -fx-padding: 14 20 14 20;
+    -fx-cursor: hand;
+}
+
+.success-back-btn:hover {
+    -fx-background-color: #dc614f;
+}

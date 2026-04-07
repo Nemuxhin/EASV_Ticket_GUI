@@ -13,10 +13,17 @@ public class TicketManager {
     private final BarcodeGenerator barcodeGenerator;
 
     public TicketManager() {
-        this.ticketDAO = new TicketDAO();
-        this.tokenGenerator = new TokenGenerator();
-        this.qrCodeGenerator = new QrCodeGenerator();
-        this.barcodeGenerator = new BarcodeGenerator();
+        this(new TicketDAO(), new TokenGenerator(), new QrCodeGenerator(), new BarcodeGenerator());
+    }
+
+    public TicketManager(TicketDAO ticketDAO,
+                         TokenGenerator tokenGenerator,
+                         QrCodeGenerator qrCodeGenerator,
+                         BarcodeGenerator barcodeGenerator) {
+        this.ticketDAO = ticketDAO;
+        this.tokenGenerator = tokenGenerator;
+        this.qrCodeGenerator = qrCodeGenerator;
+        this.barcodeGenerator = barcodeGenerator;
     }
 
     public Ticket createEventTicket(Event event,
@@ -37,13 +44,10 @@ public class TicketManager {
 
         String ticketId = tokenGenerator.generateTicketId();
         String secureToken = tokenGenerator.generateSecureToken();
-        byte[] qrImage = qrCodeGenerator.generateQrCode(secureToken);
-        byte[] barcodeImage = barcodeGenerator.generateBarcode(secureToken);
 
-        Ticket ticket = new Ticket(
+        return buildAndSaveTicket(
                 ticketId,
                 secureToken,
-                false,
                 customer,
                 event.getTitle(),
                 event.getDate(),
@@ -55,13 +59,8 @@ public class TicketManager {
                 ticketDescription,
                 price,
                 false,
-                false,
-                qrImage,
-                barcodeImage
+                false
         );
-
-        ticketDAO.addTicket(ticket);
-        return ticket;
     }
 
     public Ticket createSpecialTicket(String eventTitle,
@@ -77,13 +76,10 @@ public class TicketManager {
 
         String ticketId = tokenGenerator.generateTicketId();
         String secureToken = tokenGenerator.generateSecureToken();
-        byte[] qrImage = qrCodeGenerator.generateQrCode(secureToken);
-        byte[] barcodeImage = barcodeGenerator.generateBarcode(secureToken);
 
-        Ticket ticket = new Ticket(
+        return buildAndSaveTicket(
                 ticketId,
                 secureToken,
-                false,
                 null,
                 eventTitle,
                 eventStartDateTime,
@@ -95,6 +91,43 @@ public class TicketManager {
                 ticketDescription,
                 price,
                 true,
+                validForAllEvents
+        );
+    }
+
+    private Ticket buildAndSaveTicket(String ticketId,
+                                      String secureToken,
+                                      Customer customer,
+                                      String eventTitle,
+                                      String eventStartDateTime,
+                                      String eventEndDateTime,
+                                      String eventLocation,
+                                      String eventLocationGuidance,
+                                      String eventNotes,
+                                      String ticketType,
+                                      String ticketDescription,
+                                      String price,
+                                      boolean specialTicket,
+                                      boolean validForAllEvents) {
+
+        byte[] qrImage = qrCodeGenerator.generateQrCode(secureToken);
+        byte[] barcodeImage = barcodeGenerator.generateBarcode(secureToken);
+
+        Ticket ticket = new Ticket(
+                ticketId,
+                secureToken,
+                false,
+                customer,
+                eventTitle,
+                eventStartDateTime,
+                eventEndDateTime,
+                eventLocation,
+                eventLocationGuidance,
+                eventNotes,
+                ticketType,
+                ticketDescription,
+                price,
+                specialTicket,
                 validForAllEvents,
                 qrImage,
                 barcodeImage
@@ -121,6 +154,7 @@ public class TicketManager {
         }
 
         ticket.setUsed(true);
+        // also persist to DAO here if you have an update method
         return true;
     }
 }

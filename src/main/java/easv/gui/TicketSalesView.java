@@ -48,35 +48,55 @@ public class TicketSalesView {
         content.setPadding(new Insets(30, 50, 30, 50));
         content.getStyleClass().add("main-bg");
 
+        content.getChildren().addAll(
+                buildTopBar(),
+                buildEventCard(),
+                buildFormCard()
+        );
+
+        ScrollPane scrollPane = new ScrollPane(content);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: #F8F9FA;");
+        return scrollPane;
+    }
+
+    private HBox buildTopBar() {
         HBox topBar = new HBox();
         topBar.setAlignment(Pos.CENTER_LEFT);
 
         Label title = new Label("Sell Tickets");
         title.getStyleClass().add("page-title");
 
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
         Button backButton = new Button("\u2190 Back to Events");
         backButton.getStyleClass().add("primary-btn");
         backButton.setOnAction(e -> mainView.showCoordinatorDashboard("Events"));
 
-        topBar.getChildren().addAll(title, spacer, backButton);
+        topBar.getChildren().addAll(title, grow(), backButton);
+        return topBar;
+    }
 
+    private VBox buildEventCard() {
         VBox eventCard = new VBox(10);
         eventCard.getStyleClass().add("event-card");
+
         eventCard.getChildren().addAll(
                 styleLabel(event.getTitle(), "page-title"),
-                styleLabel("Starts: " + event.getStartDateTime(), "card-text"),
-                styleLabel("Location: " + event.getLocation(), "card-text")
+                styleLabel("Starts: " + safeText(event.getStartDateTime()), "card-text"),
+                styleLabel("Location: " + safeText(event.getLocation()), "card-text")
         );
+
         if (event.hasEndDateTime()) {
-            eventCard.getChildren().add(styleLabel("Ends: " + event.getEndDateTime(), "card-text"));
-        }
-        if (event.hasLocationGuidance()) {
-            eventCard.getChildren().add(styleLabel("Guidance: " + event.getLocationGuidance(), "card-text"));
+            eventCard.getChildren().add(styleLabel("Ends: " + safeText(event.getEndDateTime()), "card-text"));
         }
 
+        if (event.hasLocationGuidance()) {
+            eventCard.getChildren().add(styleLabel("Guidance: " + safeText(event.getLocationGuidance()), "card-text"));
+        }
+
+        return eventCard;
+    }
+
+    private VBox buildFormCard() {
         VBox formCard = new VBox(18);
         formCard.getStyleClass().add("event-card");
         formCard.setMaxWidth(1100);
@@ -100,6 +120,8 @@ public class TicketSalesView {
         vipCard.setOnMouseClicked(e -> selectTicketType(selectedType, "VIP", vipCard, standardCard, studentCard));
         studentCard.setOnMouseClicked(e -> selectTicketType(selectedType, "STUDENT", studentCard, standardCard, vipCard));
 
+        HBox ticketTypeRow = new HBox(16, standardCard, vipCard, studentCard);
+
         Label quantityLabel = styleLabel("1", "card-title");
         quantityLabel.textProperty().bind(quantity.asString());
 
@@ -115,42 +137,57 @@ public class TicketSalesView {
         plus.getStyleClass().add("secondary-btn");
         plus.setOnAction(e -> quantity.set(quantity.get() + 1));
 
-        Label totalLabel = styleLabel(formatPrice(eventController.calculateTotalPrice(event, selectedType.get(), quantity.get())), "page-title");
-        Runnable refreshTotal = () -> totalLabel.setText(formatPrice(eventController.calculateTotalPrice(event, selectedType.get(), quantity.get())));
+        HBox quantityBox = new HBox(12, minus, quantityLabel, plus);
+        quantityBox.setAlignment(Pos.CENTER_LEFT);
+
+        Label totalLabel = styleLabel(
+                formatPrice(eventController.calculateTotalPrice(event, selectedType.get(), quantity.get())),
+                "page-title"
+        );
+
+        Runnable refreshTotal = () -> totalLabel.setText(
+                formatPrice(eventController.calculateTotalPrice(event, selectedType.get(), quantity.get()))
+        );
+
         selectedType.addListener((obs, oldValue, newValue) -> refreshTotal.run());
         quantity.addListener((obs, oldValue, newValue) -> refreshTotal.run());
 
         Button confirmButton = new Button("Confirm Purchase");
         confirmButton.getStyleClass().add("primary-btn");
         confirmButton.setMaxWidth(Double.MAX_VALUE);
-        confirmButton.setOnAction(e -> handlePurchase(nameField.getText().trim(), emailField.getText().trim(), selectedType.get(), quantity.get()));
+        confirmButton.setOnAction(e ->
+                handlePurchase(
+                        nameField.getText().trim(),
+                        emailField.getText().trim(),
+                        selectedType.get(),
+                        quantity.get()
+                )
+        );
 
         formCard.getChildren().addAll(
                 createField("Full Name", nameField),
                 createField("Email", emailField),
                 styleLabel("Select Ticket Type", "notes-head"),
-                new HBox(16, standardCard, vipCard, studentCard),
-                createField("Quantity", new HBox(12, minus, quantityLabel, plus)),
+                ticketTypeRow,
+                createField("Quantity", quantityBox),
                 new Separator(),
                 new HBox(12, styleLabel("Total Price", "card-text"), grow(), totalLabel),
                 confirmButton
         );
 
-        content.getChildren().addAll(topBar, eventCard, formCard);
-
-        ScrollPane scrollPane = new ScrollPane(content);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: #F8F9FA;");
-        return scrollPane;
+        return formCard;
     }
 
     private VBox createField(String labelText, javafx.scene.Node field) {
         VBox box = new VBox(6);
+
         Label label = new Label(labelText);
         label.getStyleClass().add("form-label");
+
         if (field instanceof Region region) {
             region.setMaxWidth(Double.MAX_VALUE);
         }
+
         box.getChildren().addAll(label, field);
         return box;
     }
@@ -162,93 +199,209 @@ public class TicketSalesView {
             return;
         }
 
-        TicketPurchase purchase = eventController.createTicketPurchase(event, customerName, customerEmail, ticketType, quantity);
-        String totalPrice = formatPrice(purchase.getTotalPrice());
+        TicketPurchase purchase = eventController.createTicketPurchase(
+                event,
+                customerName,
+                customerEmail,
+                ticketType,
+                quantity
+        );
 
+        Ticket ticket = createTicketFromPurchase(purchase);
+        showSuccess(ticket, purchase, formatPrice(purchase.getTotalPrice()));
+    }
+
+    private Ticket createTicketFromPurchase(TicketPurchase purchase) {
         Customer customer = new Customer(
                 "CUST-" + UUID.randomUUID().toString().substring(0, 8),
                 purchase.getCustomerName(),
                 purchase.getCustomerEmail()
         );
 
-        Ticket ticket = ticketController.createEventTicket(
+        return ticketController.createEventTicket(
                 event,
                 customer,
                 purchase.getTicketType(),
                 describeTicketType(purchase.getTicketType()),
-                totalPrice,
+                formatPrice(purchase.getTotalPrice()),
                 event.getEndDateTime(),
                 event.getLocationGuidance()
         );
-
-        showSuccess(ticket, purchase, totalPrice);
     }
 
     private void showSuccess(Ticket ticket, TicketPurchase purchase, String totalPaid) {
-        VBox content = new VBox(18);
-        content.setPadding(new Insets(24));
-        content.setAlignment(Pos.CENTER);
-        content.getStyleClass().add("main-bg");
+        VBox page = new VBox();
+        page.setAlignment(Pos.TOP_CENTER);
+        page.setPadding(new Insets(14));
+        page.getStyleClass().add("main-bg");
 
-        VBox card = new VBox(14);
-        card.getStyleClass().add("event-card");
+        VBox card = new VBox(20);
+        card.setMaxWidth(760);
         card.setPadding(new Insets(24));
-        card.setMaxWidth(860);
-        card.setAlignment(Pos.CENTER);
-
-        Label title = new Label("Purchase Successful");
-        title.getStyleClass().add("page-title");
-
-        Label subtitle = new Label("Your ticket was generated successfully.");
-        subtitle.getStyleClass().add("card-text");
-
-        ImageView qrView = new ImageView(new Image(new ByteArrayInputStream(ticket.getQrImage())));
-        qrView.setFitWidth(180);
-        qrView.setFitHeight(180);
-        qrView.setPreserveRatio(true);
-
-        ImageView barcodeView = new ImageView(new Image(new ByteArrayInputStream(ticket.getBarcodeImage())));
-        barcodeView.setFitWidth(340);
-        barcodeView.setFitHeight(90);
-        barcodeView.setPreserveRatio(true);
-
-        Label details = new Label(
-                "Ticket ID: " + ticket.getTicketId() + "\n" +
-                "Customer: " + ticket.getCustomer().getName() + "\n" +
-                "Email: " + ticket.getCustomer().getEmail() + "\n" +
-                "Event: " + ticket.getEventTitle() + "\n" +
-                "Ticket type: " + formatTicketType(purchase.getTicketType()) + "\n" +
-                "Quantity: " + purchase.getQuantity() + "\n" +
-                "Total paid: " + totalPaid
-        );
-        details.getStyleClass().add("card-text");
-        details.setWrapText(true);
-        details.setMaxWidth(540);
-
-        Button backButton = new Button("Back to Events");
-        backButton.getStyleClass().add("primary-btn");
-        backButton.setOnAction(e -> mainView.showCoordinatorDashboard("Events"));
+        card.getStyleClass().addAll("event-card", "purchase-success-card");
 
         card.getChildren().addAll(
-                title,
-                subtitle,
-                details,
-                new Label("QR Code"),
-                qrView,
-                new Label("Barcode"),
-                barcodeView,
-                backButton
+                buildSuccessHeader(),
+                new Separator(),
+                buildSuccessBody(ticket, purchase, totalPaid),
+                buildTicketIdStrip(ticket),
+                buildSuccessBackButton()
         );
 
-        StackPane centered = new StackPane(card);
-        centered.setPadding(new Insets(30));
+        page.getChildren().add(card);
 
-        content.getChildren().add(centered);
-
-        ScrollPane scrollPane = new ScrollPane(content);
+        ScrollPane scrollPane = new ScrollPane(page);
         scrollPane.setFitToWidth(true);
         scrollPane.setStyle("-fx-background-color: transparent; -fx-background: #F8F9FA;");
         mainView.setContent(scrollPane);
+    }
+
+    private VBox buildSuccessHeader() {
+        StackPane iconCircle = new StackPane();
+        iconCircle.getStyleClass().add("success-icon-circle");
+        iconCircle.setPrefSize(64, 64);
+
+        Label icon = new Label("✓");
+        icon.getStyleClass().add("success-icon");
+        iconCircle.getChildren().add(icon);
+
+        Label title = new Label("Purchase Successful!");
+        title.getStyleClass().add("success-title");
+
+        Label subtitle = new Label("Your ticket has been generated");
+        subtitle.getStyleClass().add("success-subtitle");
+
+        VBox header = new VBox(10, iconCircle, title, subtitle);
+        header.setAlignment(Pos.CENTER);
+        return header;
+    }
+
+    private HBox buildSuccessBody(Ticket ticket, TicketPurchase purchase, String totalPaid) {
+        VBox leftColumn = buildLeftDetailsColumn(ticket);
+        VBox rightColumn = buildRightQrColumn(ticket, purchase, totalPaid);
+
+        HBox body = new HBox(24, leftColumn, rightColumn);
+        body.setAlignment(Pos.TOP_LEFT);
+
+        HBox.setHgrow(leftColumn, Priority.ALWAYS);
+        return body;
+    }
+
+    private VBox buildLeftDetailsColumn(Ticket ticket) {
+        Label eventDetailsTitle = new Label("Event Details");
+        eventDetailsTitle.getStyleClass().add("success-section-title");
+
+        VBox eventInfo = new VBox(
+                12,
+                createLabeledValue("Event Name", safeText(ticket.getEventTitle())),
+                createIconRow("📅", extractDate(ticket.getEventStartDateTime())),
+                createIconRow("🕒", extractTime(ticket.getEventStartDateTime())),
+                createIconRow("📍", safeText(ticket.getEventLocation()))
+        );
+
+        Label customerInfoTitle = new Label("Customer Information");
+        customerInfoTitle.getStyleClass().add("success-section-title");
+
+        String customerName = ticket.getCustomer() != null ? ticket.getCustomer().getName() : "-";
+        String customerEmail = ticket.getCustomer() != null ? ticket.getCustomer().getEmail() : "-";
+
+        VBox customerInfo = new VBox(
+                12,
+                createIconRow("👤", safeText(customerName)),
+                createIconRow("✉", safeText(customerEmail))
+        );
+
+        VBox left = new VBox(
+                18,
+                eventDetailsTitle,
+                eventInfo,
+                new Separator(),
+                customerInfoTitle,
+                customerInfo
+        );
+
+        left.setPrefWidth(360);
+        return left;
+    }
+
+    private VBox buildRightQrColumn(Ticket ticket, TicketPurchase purchase, String totalPaid) {
+        ImageView qrView = new ImageView(new Image(new ByteArrayInputStream(ticket.getQrImage())));
+        qrView.setFitWidth(200);
+        qrView.setFitHeight(200);
+        qrView.setPreserveRatio(true);
+
+        VBox qrBox = new VBox(10);
+        qrBox.setAlignment(Pos.CENTER);
+        qrBox.getStyleClass().add("ticket-qr-box");
+
+        Label qrHint = new Label("Scan this QR code at the venue");
+        qrHint.getStyleClass().add("qr-hint");
+
+        qrBox.getChildren().addAll(qrView, qrHint);
+
+        VBox summaryBox = new VBox(
+                14,
+                createSummaryRow("Ticket Type:", formatTicketType(purchase.getTicketType()), false),
+                createSummaryRow("Quantity:", String.valueOf(purchase.getQuantity()), false),
+                createSummaryRow("Total Paid:", totalPaid, true)
+        );
+        summaryBox.getStyleClass().add("ticket-summary-box");
+
+        VBox right = new VBox(18, qrBox, summaryBox);
+        right.setPrefWidth(280);
+        return right;
+    }
+
+    private VBox createLabeledValue(String labelText, String valueText) {
+        Label label = new Label(labelText);
+        label.getStyleClass().add("success-field-label");
+
+        Label value = new Label(valueText);
+        value.getStyleClass().add("success-field-value");
+        value.setWrapText(true);
+
+        return new VBox(6, label, value);
+    }
+
+    private HBox createIconRow(String iconText, String valueText) {
+        Label icon = new Label(iconText);
+        icon.getStyleClass().add("success-row-icon");
+
+        Label value = new Label(valueText);
+        value.getStyleClass().add("success-row-text");
+        value.setWrapText(true);
+
+        HBox row = new HBox(10, icon, value);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    private HBox createSummaryRow(String labelText, String valueText, boolean highlightValue) {
+        Label label = new Label(labelText);
+        label.getStyleClass().add("summary-label");
+
+        Label value = new Label(valueText);
+        value.getStyleClass().add(highlightValue ? "summary-value-highlight" : "summary-value");
+
+        HBox row = new HBox(10, label, grow(), value);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    private Label buildTicketIdStrip(Ticket ticket) {
+        Label ticketIdLabel = new Label("Ticket ID: " + ticket.getTicketId());
+        ticketIdLabel.setAlignment(Pos.CENTER);
+        ticketIdLabel.setMaxWidth(Double.MAX_VALUE);
+        ticketIdLabel.getStyleClass().add("ticket-id-strip");
+        return ticketIdLabel;
+    }
+
+    private Button buildSuccessBackButton() {
+        Button backButton = new Button("Back to Events");
+        backButton.setMaxWidth(Double.MAX_VALUE);
+        backButton.getStyleClass().add("success-back-btn");
+        backButton.setOnAction(e -> mainView.showCoordinatorDashboard("Events"));
+        return backButton;
     }
 
     private VBox createTicketTypeCard(String title, String price, String modifier, boolean selected) {
@@ -257,15 +410,18 @@ public class TicketSalesView {
         card.setPadding(new Insets(18));
         card.getStyleClass().add(selected ? "ticket-type-selected" : "ticket-type");
         card.setMaxWidth(Double.MAX_VALUE);
+
         HBox.setHgrow(card, Priority.ALWAYS);
 
         card.getChildren().addAll(
                 styleLabel(title, "card-title"),
                 styleLabel(price, "card-text")
         );
+
         if (!modifier.isBlank()) {
             card.getChildren().add(styleLabel(modifier, "card-text"));
         }
+
         return card;
     }
 
@@ -304,6 +460,40 @@ public class TicketSalesView {
             return String.format(Locale.ENGLISH, "%.0f DKK", amount);
         }
         return String.format(Locale.ENGLISH, "%.2f DKK", amount);
+    }
+
+    private String extractDate(String startDateTime) {
+        if (startDateTime == null || startDateTime.isBlank()) {
+            return "-";
+        }
+
+        String normalized = startDateTime.trim().replace("T", " ");
+        String[] parts = normalized.split("\\s+");
+
+        if (parts.length >= 1) {
+            return parts[0];
+        }
+
+        return normalized;
+    }
+
+    private String extractTime(String startDateTime) {
+        if (startDateTime == null || startDateTime.isBlank()) {
+            return "-";
+        }
+
+        String normalized = startDateTime.trim().replace("T", " ");
+        String[] parts = normalized.split("\\s+");
+
+        if (parts.length >= 2) {
+            return parts[1];
+        }
+
+        return "-";
+    }
+
+    private String safeText(String value) {
+        return (value == null || value.isBlank()) ? "-" : value;
     }
 
     private Label styleLabel(String text, String styleClass) {
