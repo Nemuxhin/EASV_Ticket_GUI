@@ -1,7 +1,6 @@
 package easv.bll;
 
 import easv.be.User;
-import easv.dal.LoginDAO;
 import easv.dal.UserDAO;
 
 import java.util.List;
@@ -10,10 +9,9 @@ import java.util.regex.Pattern;
 public class UserManager {
 
     private final UserDAO userDAO = new UserDAO();
-    private final LoginDAO loginDAO = new LoginDAO();
 
     public boolean login(String username, String password, String role) {
-        return loginDAO.validateLogin(username, password, role);
+        return userDAO.findUser(username, password, role) != null;
     }
 
     public List<User> getUsersByRole(String role) {
