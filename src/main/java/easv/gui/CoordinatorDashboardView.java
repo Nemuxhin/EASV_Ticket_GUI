@@ -513,6 +513,7 @@ public class CoordinatorDashboardView {
                 form.guidanceField.getText().trim(),
                 form.notesArea.getText().trim(),
                 normalizePrice(form.priceField.getText()),
+                form.capacityField.getText().trim(),
                 "Available",
                 new String[0]
         );
@@ -563,6 +564,7 @@ public class CoordinatorDashboardView {
                 form.guidanceField.getText().trim(),
                 form.notesArea.getText().trim(),
                 normalizePrice(form.priceField.getText()),
+                form.capacityField.getText().trim(),
                 currentEvent.getStatus(),
                 currentEvent.getCoordinators()
         );
@@ -704,11 +706,30 @@ public class CoordinatorDashboardView {
             return;
         }
 
-        try {
-            LocalDateTime parsedDateTime = LocalDateTime.parse(dateTimeValue, DISPLAY_DATE_TIME);
+        LocalDateTime parsedDateTime = parseDateTimeValue(dateTimeValue);
+        if (parsedDateTime != null) {
             datePicker.setValue(parsedDateTime.toLocalDate());
             timeBox.setValue(parsedDateTime.toLocalTime().format(TIME_FORMATTER));
+        }
+    }
+
+    private LocalDateTime parseDateTimeValue(String dateTimeValue) {
+        for (DateTimeFormatter formatter : new DateTimeFormatter[]{DISPLAY_DATE_TIME, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S")}) {
+            try {
+                return LocalDateTime.parse(dateTimeValue.trim(), formatter);
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+
+        try {
+            return LocalDateTime.parse(dateTimeValue.trim().replace(" ", "T"));
         } catch (DateTimeParseException ignored) {
+        }
+
+        try {
+            return LocalDate.parse(dateTimeValue.trim(), FORM_DATE).atStartOfDay();
+        } catch (DateTimeParseException ignored) {
+            return null;
         }
     }
 
@@ -781,7 +802,7 @@ public class CoordinatorDashboardView {
                 guidanceField.setText(seedEvent.getLocationGuidance());
                 notesArea.setText(seedEvent.getNotes());
                 priceField.setText(seedEvent.getPrice().replace("DKK", "").replace("Free", "0").trim());
-                capacityField.setText("300");
+                capacityField.setText(seedEvent.getCapacity());
             }
 
             titleBox = fieldBox("Event Title *", titleField);

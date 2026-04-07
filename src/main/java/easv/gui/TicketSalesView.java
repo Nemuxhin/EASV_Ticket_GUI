@@ -169,6 +169,7 @@ public class TicketSalesView {
 
         TicketPurchase purchase = eventController.createTicketPurchase(event, customerName, customerEmail, ticketType, quantity);
         String totalPrice = formatPrice(purchase.getTotalPrice());
+        String ticketPrice = formatPrice(purchase.getTotalPrice() / purchase.getQuantity());
 
         Customer customer = new Customer(
                 "CUST-" + UUID.randomUUID().toString().substring(0, 8),
@@ -176,15 +177,18 @@ public class TicketSalesView {
                 purchase.getCustomerEmail()
         );
 
-        Ticket ticket = ticketController.createEventTicket(
-                event,
-                customer,
-                purchase.getTicketType(),
-                describeTicketType(purchase.getTicketType()),
-                totalPrice,
-                event.getEndDateTime(),
-                event.getLocationGuidance()
-        );
+        Ticket ticket = null;
+        for (int i = 0; i < purchase.getQuantity(); i++) {
+            ticket = ticketController.createEventTicket(
+                    event,
+                    customer,
+                    purchase.getTicketType(),
+                    describeTicketType(purchase.getTicketType()),
+                    ticketPrice,
+                    event.getEndDateTime(),
+                    event.getLocationGuidance()
+            );
+        }
 
         showSuccess(ticket, purchase, totalPrice);
     }

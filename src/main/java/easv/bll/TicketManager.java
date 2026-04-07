@@ -121,6 +121,6 @@ public class TicketManager {
         }
 
         ticket.setUsed(true);
-        return true;
+        return ticketDAO.markTicketAsUsed(secureToken);
     }
 }
