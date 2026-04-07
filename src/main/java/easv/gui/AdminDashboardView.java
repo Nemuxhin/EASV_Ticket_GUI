@@ -8,19 +8,27 @@ import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
-import javafx.scene.control.ComboBox;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class AdminDashboardView {
 
@@ -91,7 +99,15 @@ public class AdminDashboardView {
         VBox content = new VBox(20);
         content.setPadding(new Insets(30, 50, 30, 50));
 
-        Label title = new Label("Manage Coordinators");
+        showCoordinatorList(content);
+
+        return content;
+    }
+
+    private void showCoordinatorList(VBox content) {
+        content.getChildren().clear();
+
+        Label title = new Label("Event Coordinators");
         title.getStyleClass().add("page-title");
 
         TextField searchBar = new TextField();
@@ -105,13 +121,11 @@ public class AdminDashboardView {
         Region topSpacer = new Region();
         HBox.setHgrow(topSpacer, Priority.ALWAYS);
 
-        Button backBtn = new Button("\u2190 Back to Portal Selection");
-        backBtn.getStyleClass().add("primary-btn");
-        backBtn.setOnAction(e -> mainView.showPortalSelection());
+        Button createBtn = new Button("+ Create Coordinator");
+        createBtn.getStyleClass().add("primary-btn");
+        createBtn.setOnAction(e -> showCoordinatorForm(content));
 
-        topBar.getChildren().addAll(title, topSpacer, backBtn);
-
-        VBox formCard = createCoordinatorFormCard();
+        topBar.getChildren().addAll(title, topSpacer, createBtn);
 
         FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
         grid.setPrefWrapLength(1000);
@@ -128,23 +142,45 @@ public class AdminDashboardView {
             Label emailLbl = new Label("\u2709 " + user.getEmail());
             emailLbl.getStyleClass().add("card-text");
 
-            Label usernameLbl = new Label("Username: " + user.getUsername());
-            usernameLbl.getStyleClass().add("card-text");
+            Label roleLbl = new Label(user.getRole());
+            roleLbl.getStyleClass().add("card-text");
 
             Button deleteBtn = new Button("\uD83D\uDDD1 Delete");
             deleteBtn.getStyleClass().add("danger-btn");
             deleteBtn.setMaxWidth(Double.MAX_VALUE);
             deleteBtn.setOnAction(e -> {
                 userController.deleteUser(user);
-                mainView.showAdminDashboard("Coordinators");
+                showCoordinatorList(content);
             });
 
-            card.getChildren().addAll(nameLbl, emailLbl, usernameLbl, new Separator(), deleteBtn);
+            card.getChildren().addAll(nameLbl, emailLbl, roleLbl, new Separator(), deleteBtn);
             grid.getChildren().add(card);
         }
 
-        content.getChildren().addAll(topBar, searchBar, formCard, grid);
-        return content;
+        content.getChildren().addAll(topBar, searchBar, grid);
+    }
+
+    private void showCoordinatorForm(VBox content) {
+        content.getChildren().clear();
+
+        HBox topBar = new HBox(16);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        Label title = new Label("Create New Coordinator");
+        title.getStyleClass().add("page-title");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button backBtn = new Button("\u2190 Back");
+        backBtn.getStyleClass().add("secondary-btn");
+        backBtn.setOnAction(e -> showCoordinatorList(content));
+
+        topBar.getChildren().addAll(title, spacer, backBtn);
+
+        VBox formCard = createCoordinatorFormCard(() -> showCoordinatorList(content));
+
+        content.getChildren().addAll(topBar, formCard);
     }
 
     private VBox createEventsContent() {
@@ -218,6 +254,27 @@ public class AdminDashboardView {
         Label priceLbl = new Label(event.getPrice());
         priceLbl.getStyleClass().add("price-text");
 
+        Label assignedHead = new Label("Assigned Coordinators");
+        assignedHead.getStyleClass().add("notes-head");
+
+        FlowPane pillBox = new FlowPane(5, 5);
+        if (event.getCoordinators() == null || event.getCoordinators().length == 0) {
+            Label emptyLbl = new Label("No coordinators assigned yet");
+            emptyLbl.getStyleClass().add("card-text");
+            pillBox.getChildren().add(emptyLbl);
+        } else {
+            for (String coordinator : event.getCoordinators()) {
+                Label pill = new Label(coordinator);
+                pill.getStyleClass().add("coord-pill");
+                pillBox.getChildren().add(pill);
+            }
+        }
+
+        Button assignBtn = new Button("\uD83D\uDC65 Assign Coordinators");
+        assignBtn.getStyleClass().add("primary-btn");
+        assignBtn.setMaxWidth(Double.MAX_VALUE);
+        assignBtn.setOnAction(e -> showAssignAccessDialog(event, assignBtn));
+
         Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
         deleteBtn.getStyleClass().add("danger-btn");
         deleteBtn.setMaxWidth(Double.MAX_VALUE);
@@ -234,6 +291,9 @@ public class AdminDashboardView {
                 notesLbl,
                 new Separator(),
                 priceLbl,
+                assignedHead,
+                pillBox,
+                assignBtn,
                 deleteBtn
         );
 
@@ -250,7 +310,7 @@ public class AdminDashboardView {
         return btn;
     }
 
-    private VBox createCoordinatorFormCard() {
+    private VBox createCoordinatorFormCard(Runnable onDoneOrCancel) {
         VBox formCard = new VBox(14);
         formCard.getStyleClass().add("event-card");
         formCard.setMaxWidth(Double.MAX_VALUE);
@@ -266,10 +326,6 @@ public class AdminDashboardView {
         emailField.setPromptText("email@easv.dk");
         emailField.getStyleClass().add("input-field");
 
-        TextField phoneField = new TextField();
-        phoneField.setPromptText("+45 12 34 56 78");
-        phoneField.getStyleClass().add("input-field");
-
         ComboBox<String> roleBox = new ComboBox<>();
         roleBox.getItems().add("Event Coordinator");
         roleBox.setValue("Event Coordinator");
@@ -281,28 +337,34 @@ public class AdminDashboardView {
 
         Button cancelBtn = new Button("Cancel");
         cancelBtn.getStyleClass().add("secondary-btn");
-        cancelBtn.setOnAction(e -> {
-            nameField.clear();
-            emailField.clear();
-            phoneField.clear();
-            roleBox.setValue("Event Coordinator");
-        });
+        cancelBtn.setOnAction(e -> onDoneOrCancel.run());
 
         createBtn.setOnAction(e -> {
-            if (nameField.getText().isBlank() || emailField.getText().isBlank() || phoneField.getText().isBlank()) {
+            String name = nameField.getText().trim();
+            String email = emailField.getText().trim();
+
+            if (name.isBlank() || email.isBlank()) {
                 AlertHelper.showError("Invalid Coordinator", "Please fill in all coordinator fields.");
                 return;
             }
 
+            if (!isValidEmail(email)) {
+                AlertHelper.showError("Invalid Email", "Please enter a valid email address.");
+                return;
+            }
+
+            String username = email.substring(0, email.indexOf("@"));
+
             User user = new User(
-                    nameField.getText().trim(),
-                    phoneField.getText().trim(),
+                    name,
+                    username,
                     "1234",
-                    emailField.getText().trim(),
+                    email,
                     roleBox.getValue()
             );
+
             userController.createUser(user);
-            mainView.showAdminDashboard("Coordinators");
+            onDoneOrCancel.run();
         });
 
         HBox actions = new HBox(12, createBtn, cancelBtn);
@@ -311,7 +373,6 @@ public class AdminDashboardView {
                 heading,
                 fieldBox("Full Name *", nameField),
                 fieldBox("Email *", emailField),
-                fieldBox("Phone *", phoneField),
                 fieldBox("Role *", roleBox),
                 actions
         );
@@ -328,5 +389,145 @@ public class AdminDashboardView {
         }
         form.getChildren().addAll(label, field);
         return form;
+    }
+
+    private boolean isValidEmail(String email) {
+        return email != null &&
+                Pattern.matches("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", email);
+    }
+
+    private void showAssignAccessDialog(Event currentEvent, javafx.scene.Node ownerNode) {
+        List<User> coordinators = userController.getUsersByRole("Event Coordinator");
+        if (coordinators.isEmpty()) {
+            showInfo("No event coordinators are available yet.");
+            return;
+        }
+
+        Stage popup = new Stage();
+        popup.initModality(Modality.APPLICATION_MODAL);
+        popup.initStyle(StageStyle.TRANSPARENT);
+        popup.setResizable(false);
+
+        if (ownerNode != null && ownerNode.getScene() != null && ownerNode.getScene().getWindow() != null) {
+            popup.initOwner(ownerNode.getScene().getWindow());
+        }
+
+        VBox overlay = new VBox();
+        overlay.setAlignment(Pos.CENTER);
+        overlay.setPadding(new Insets(30));
+        overlay.setStyle("-fx-background-color: transparent;");
+
+        VBox card = new VBox(18);
+        card.getStyleClass().add("assign-dialog-card");
+        card.setPrefWidth(460);
+        card.setMaxWidth(460);
+
+        HBox header = new HBox();
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label title = new Label("Assign Coordinators");
+        title.getStyleClass().add("assign-dialog-title");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button closeBtn = new Button("✕");
+        closeBtn.getStyleClass().add("assign-dialog-close");
+        closeBtn.setOnAction(e -> popup.close());
+
+        header.getChildren().addAll(title, spacer, closeBtn);
+
+        Label subtitle = new Label("Click coordinators to assign or remove them.");
+        subtitle.setWrapText(true);
+        subtitle.getStyleClass().add("assign-dialog-subtitle");
+
+        FlowPane pillPane = new FlowPane();
+        pillPane.setHgap(10);
+        pillPane.setVgap(10);
+
+        List<String> currentAssignments = currentEvent.getCoordinators() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(Arrays.asList(currentEvent.getCoordinators()));
+
+        List<Button> selectorButtons = new ArrayList<>();
+        List<User> buttonUsers = new ArrayList<>();
+
+        for (User coordinator : coordinators) {
+            Button pillBtn = new Button(coordinator.getName());
+            pillBtn.getStyleClass().add("assign-pill");
+
+            boolean isSelected = currentAssignments.contains(coordinator.getName());
+            pillBtn.setUserData(isSelected);
+
+            if (isSelected) {
+                pillBtn.getStyleClass().add("assign-pill-selected");
+            }
+
+            pillBtn.setOnAction(e -> {
+                boolean selected = (boolean) pillBtn.getUserData();
+                if (selected) {
+                    pillBtn.setUserData(false);
+                    pillBtn.getStyleClass().remove("assign-pill-selected");
+                } else {
+                    pillBtn.setUserData(true);
+                    if (!pillBtn.getStyleClass().contains("assign-pill-selected")) {
+                        pillBtn.getStyleClass().add("assign-pill-selected");
+                    }
+                }
+            });
+
+            selectorButtons.add(pillBtn);
+            buttonUsers.add(coordinator);
+            pillPane.getChildren().add(pillBtn);
+        }
+
+        ScrollPane scrollPane = new ScrollPane(pillPane);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefHeight(170);
+        scrollPane.getStyleClass().add("assign-dialog-scroll");
+
+        Button cancelBtn = new Button("Cancel");
+        cancelBtn.getStyleClass().add("secondary-btn");
+        cancelBtn.setOnAction(e -> popup.close());
+
+        Button saveBtn = new Button("Save Changes");
+        saveBtn.getStyleClass().add("primary-btn");
+        saveBtn.setOnAction(e -> {
+            List<String> selected = new ArrayList<>();
+
+            for (int i = 0; i < selectorButtons.size(); i++) {
+                if ((boolean) selectorButtons.get(i).getUserData()) {
+                    selected.add(buttonUsers.get(i).getName());
+                }
+            }
+
+            eventController.setCoordinators(currentEvent, selected.toArray(new String[0]));
+            popup.close();
+            mainView.showAdminDashboard("Events");
+        });
+
+        HBox actions = new HBox(12, cancelBtn, saveBtn);
+        actions.setAlignment(Pos.CENTER_RIGHT);
+
+        card.getChildren().addAll(header, subtitle, new Separator(), scrollPane, actions);
+        overlay.getChildren().add(card);
+
+        Scene scene = new Scene(overlay);
+        scene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+
+        if (ownerNode != null && ownerNode.getScene() != null) {
+            scene.getStylesheets().addAll(ownerNode.getScene().getStylesheets());
+        }
+
+        popup.setScene(scene);
+        popup.showAndWait();
+    }
+
+    private void showInfo(String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Assign Coordinators");
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 }
