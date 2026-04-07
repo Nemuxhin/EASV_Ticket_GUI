@@ -111,14 +111,6 @@ public class TicketController {
         return ticketManager.findByToken(secureToken);
     }
 
-    public Ticket findByTicketId(String ticketId) {
-        return ticketManager.findByTicketId(ticketId);
-    }
-
-    public List<Ticket> getTicketsByCustomerEmail(String customerEmail) {
-        return ticketManager.getTicketsByCustomerEmail(customerEmail);
-    }
-
     public boolean isTicketValid(String secureToken) {
         return ticketManager.isTicketValid(secureToken);
     }

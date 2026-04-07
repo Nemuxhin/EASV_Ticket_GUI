@@ -206,14 +206,6 @@ public class TicketManager {
         return ticketDAO.findByToken(secureToken);
     }
 
-    public Ticket findByTicketId(String ticketId) {
-        return ticketDAO.findByTicketId(ticketId);
-    }
-
-    public List<Ticket> getTicketsByCustomerEmail(String customerEmail) {
-        return ticketDAO.findByCustomerEmail(customerEmail);
-    }
-
     public boolean isTicketValid(String secureToken) {
         Ticket ticket = ticketDAO.findByToken(secureToken);
         return ticket != null && !ticket.isUsed();
@@ -226,11 +218,16 @@ public class TicketManager {
             return false;
         }
 
+        if (ticket.isValidForAllEvents()) {
+            return true;
+        }
+
         if (eventTitle == null || eventTitle.isBlank()) {
             return true;
         }
 
-        return ticket.matchesEvent(eventTitle);
+        return ticket.getEventTitle() != null
+                && ticket.getEventTitle().trim().equalsIgnoreCase(eventTitle.trim());
     }
 
     public boolean markTicketAsUsed(String secureToken) {
@@ -241,7 +238,7 @@ public class TicketManager {
         }
 
         ticket.setUsed(true);
-        return ticketDAO.updateTicket(ticket);
+        return true;
     }
 
     private void validateEventTicketInput(Event event,

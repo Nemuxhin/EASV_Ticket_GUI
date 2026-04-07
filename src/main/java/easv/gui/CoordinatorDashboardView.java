@@ -120,14 +120,22 @@ public class CoordinatorDashboardView {
         title.getStyleClass().add("page-title");
 
         TextField searchBar = new TextField();
-        searchBar.setPromptText("Search events...");
+        searchBar.setPromptText("Search events by title or venue...");
         searchBar.getStyleClass().add("search-bar");
-        searchBar.setMaxWidth(400);
+        searchBar.setPrefWidth(520);
 
-        Button createBtn = new Button("\uFF0B Create Event");
+        Button specialTicketsBtn = new Button("✦ Special Tickets");
+        specialTicketsBtn.getStyleClass().add("secondary-btn");
+        specialTicketsBtn.setOnAction(e ->
+                mainView.setContent(new CreateSpecialTicketView(mainView).getView())
+        );
+
+        Button createBtn = new Button("+ Create Event");
         createBtn.getStyleClass().add("primary-btn");
-        createBtn.setPrefWidth(1000);
         createBtn.setOnAction(e -> mainView.showCoordinatorDashboard("Create Event"));
+
+        HBox toolbar = new HBox(12, searchBar, specialTicketsBtn, createBtn);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
 
         FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
         grid.setPrefWrapLength(1000);
@@ -136,7 +144,7 @@ public class CoordinatorDashboardView {
             grid.getChildren().add(createEventCard(event));
         }
 
-        content.getChildren().addAll(title, searchBar, createBtn, grid);
+        content.getChildren().addAll(title, toolbar, grid);
         return content;
     }
 
