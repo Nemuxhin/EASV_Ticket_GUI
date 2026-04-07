@@ -44,6 +44,10 @@ public class UserDAO {
         USERS.remove(user);
     }
 
+    public void updateUser(User user) {
+        // In this in-memory setup, the object is already updated by reference. This method is here so it's ready for real database logic later.
+    }
+
     public User findUser(String username, String password, String role) {
         for (User user : USERS) {
             boolean sameUsername = user.getUsername().equalsIgnoreCase(username);

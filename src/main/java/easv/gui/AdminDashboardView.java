@@ -11,8 +11,8 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.PasswordField;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
@@ -20,6 +20,7 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
@@ -28,7 +29,6 @@ import javafx.stage.StageStyle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.regex.Pattern;
 
 public class AdminDashboardView {
 
@@ -98,9 +98,7 @@ public class AdminDashboardView {
     private VBox createCoordinatorsContent() {
         VBox content = new VBox(20);
         content.setPadding(new Insets(30, 50, 30, 50));
-
         showCoordinatorList(content);
-
         return content;
     }
 
@@ -123,7 +121,7 @@ public class AdminDashboardView {
 
         Button createBtn = new Button("+ Create Coordinator");
         createBtn.getStyleClass().add("primary-btn");
-        createBtn.setOnAction(e -> showCoordinatorForm(content));
+        createBtn.setOnAction(e -> showCoordinatorCreateForm(content));
 
         topBar.getChildren().addAll(title, topSpacer, createBtn);
 
@@ -142,8 +140,13 @@ public class AdminDashboardView {
             Label emailLbl = new Label("\u2709 " + user.getEmail());
             emailLbl.getStyleClass().add("card-text");
 
-            Label roleLbl = new Label(user.getRole());
-            roleLbl.getStyleClass().add("card-text");
+            Label usernameLbl = new Label("Username: " + user.getUsername());
+            usernameLbl.getStyleClass().add("card-text");
+
+            Button editBtn = new Button("Edit");
+            editBtn.getStyleClass().add("secondary-btn");
+            editBtn.setMaxWidth(Double.MAX_VALUE);
+            editBtn.setOnAction(e -> showCoordinatorEditForm(content, user));
 
             Button deleteBtn = new Button("\uD83D\uDDD1 Delete");
             deleteBtn.getStyleClass().add("danger-btn");
@@ -153,14 +156,21 @@ public class AdminDashboardView {
                 showCoordinatorList(content);
             });
 
-            card.getChildren().addAll(nameLbl, emailLbl, roleLbl, new Separator(), deleteBtn);
+            card.getChildren().addAll(
+                    nameLbl,
+                    emailLbl,
+                    usernameLbl,
+                    new Separator(),
+                    editBtn,
+                    deleteBtn
+            );
             grid.getChildren().add(card);
         }
 
         content.getChildren().addAll(topBar, searchBar, grid);
     }
 
-    private void showCoordinatorForm(VBox content) {
+    private void showCoordinatorCreateForm(VBox content) {
         content.getChildren().clear();
 
         HBox topBar = new HBox(16);
@@ -178,8 +188,29 @@ public class AdminDashboardView {
 
         topBar.getChildren().addAll(title, spacer, backBtn);
 
-        VBox formCard = createCoordinatorFormCard(() -> showCoordinatorList(content));
+        VBox formCard = createCoordinatorCreateFormCard(() -> showCoordinatorList(content));
+        content.getChildren().addAll(topBar, formCard);
+    }
 
+    private void showCoordinatorEditForm(VBox content, User user) {
+        content.getChildren().clear();
+
+        HBox topBar = new HBox(16);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        Label title = new Label("Edit Coordinator");
+        title.getStyleClass().add("page-title");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button backBtn = new Button("\u2190 Back");
+        backBtn.getStyleClass().add("secondary-btn");
+        backBtn.setOnAction(e -> showCoordinatorList(content));
+
+        topBar.getChildren().addAll(title, spacer, backBtn);
+
+        VBox formCard = createCoordinatorEditFormCard(user, () -> showCoordinatorList(content));
         content.getChildren().addAll(topBar, formCard);
     }
 
@@ -310,7 +341,7 @@ public class AdminDashboardView {
         return btn;
     }
 
-    private VBox createCoordinatorFormCard(Runnable onDoneOrCancel) {
+    private VBox createCoordinatorCreateFormCard(Runnable onDoneOrCancel) {
         VBox formCard = new VBox(14);
         formCard.getStyleClass().add("event-card");
         formCard.setMaxWidth(Double.MAX_VALUE);
@@ -326,11 +357,15 @@ public class AdminDashboardView {
         emailField.setPromptText("email@easv.dk");
         emailField.getStyleClass().add("input-field");
 
-        ComboBox<String> roleBox = new ComboBox<>();
-        roleBox.getItems().add("Event Coordinator");
-        roleBox.setValue("Event Coordinator");
-        roleBox.getStyleClass().add("input-field");
-        roleBox.setMaxWidth(Double.MAX_VALUE);
+        TextField usernameField = new TextField();
+        usernameField.setPromptText("Enter username");
+        usernameField.getStyleClass().add("input-field");
+
+        PasswordField passwordField = new PasswordField();
+        passwordField.setPromptText("Enter password");
+
+        TextField visiblePasswordField = new TextField();
+        visiblePasswordField.setPromptText("Enter password");
 
         Button createBtn = new Button("Create Coordinator");
         createBtn.getStyleClass().add("primary-btn");
@@ -342,25 +377,21 @@ public class AdminDashboardView {
         createBtn.setOnAction(e -> {
             String name = nameField.getText().trim();
             String email = emailField.getText().trim();
+            String username = usernameField.getText().trim();
+            String password = passwordField.getText();
 
-            if (name.isBlank() || email.isBlank()) {
-                AlertHelper.showError("Invalid Coordinator", "Please fill in all coordinator fields.");
+            String validation = userController.validateCoordinatorInput(name, email, username, password);
+            if (validation != null) {
+                AlertHelper.showError("Invalid Coordinator", validation);
                 return;
             }
-
-            if (!isValidEmail(email)) {
-                AlertHelper.showError("Invalid Email", "Please enter a valid email address.");
-                return;
-            }
-
-            String username = email.substring(0, email.indexOf("@"));
 
             User user = new User(
                     name,
                     username,
-                    "1234",
+                    password,
                     email,
-                    roleBox.getValue()
+                    "Event Coordinator"
             );
 
             userController.createUser(user);
@@ -373,7 +404,68 @@ public class AdminDashboardView {
                 heading,
                 fieldBox("Full Name *", nameField),
                 fieldBox("Email *", emailField),
-                fieldBox("Role *", roleBox),
+                fieldBox("Username *", usernameField),
+                passwordFieldBox("Password *", passwordField, visiblePasswordField),
+                actions
+        );
+
+        return formCard;
+    }
+
+    private VBox createCoordinatorEditFormCard(User user, Runnable onDoneOrCancel) {
+        VBox formCard = new VBox(14);
+        formCard.getStyleClass().add("event-card");
+        formCard.setMaxWidth(Double.MAX_VALUE);
+
+        Label heading = new Label("Edit Coordinator");
+        heading.getStyleClass().add("card-title");
+
+        TextField nameField = new TextField(user.getName());
+        nameField.getStyleClass().add("input-field");
+
+        TextField emailField = new TextField(user.getEmail());
+        emailField.getStyleClass().add("input-field");
+
+        TextField usernameField = new TextField(user.getUsername());
+        usernameField.getStyleClass().add("input-field");
+
+        PasswordField passwordField = new PasswordField();
+        passwordField.setText(user.getPassword());
+
+        TextField visiblePasswordField = new TextField();
+        visiblePasswordField.setText(user.getPassword());
+
+        Button saveBtn = new Button("Save Changes");
+        saveBtn.getStyleClass().add("primary-btn");
+
+        Button cancelBtn = new Button("Cancel");
+        cancelBtn.getStyleClass().add("secondary-btn");
+        cancelBtn.setOnAction(e -> onDoneOrCancel.run());
+
+        saveBtn.setOnAction(e -> {
+            String name = nameField.getText().trim();
+            String email = emailField.getText().trim();
+            String username = usernameField.getText().trim();
+            String password = passwordField.getText();
+
+            String validation = userController.validateCoordinatorInput(name, email, username, password);
+            if (validation != null) {
+                AlertHelper.showError("Invalid Coordinator", validation);
+                return;
+            }
+
+            userController.updateUser(user, name, email, username, password);
+            onDoneOrCancel.run();
+        });
+
+        HBox actions = new HBox(12, saveBtn, cancelBtn);
+
+        formCard.getChildren().addAll(
+                heading,
+                fieldBox("Full Name *", nameField),
+                fieldBox("Email *", emailField),
+                fieldBox("Username *", usernameField),
+                passwordFieldBox("Password *", passwordField, visiblePasswordField),
                 actions
         );
 
@@ -391,9 +483,36 @@ public class AdminDashboardView {
         return form;
     }
 
-    private boolean isValidEmail(String email) {
-        return email != null &&
-                Pattern.matches("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$", email);
+    private VBox passwordFieldBox(String labelText, PasswordField passwordField, TextField visibleField) {
+        passwordField.getStyleClass().add("input-field");
+        visibleField.getStyleClass().add("input-field");
+
+        visibleField.setManaged(false);
+        visibleField.setVisible(false);
+
+        passwordField.textProperty().bindBidirectional(visibleField.textProperty());
+
+        Button toggleBtn = new Button("👁");
+        toggleBtn.getStyleClass().add("password-toggle-inside-btn");
+        toggleBtn.setFocusTraversable(false);
+
+        StackPane stack = new StackPane(passwordField, visibleField, toggleBtn);
+        StackPane.setAlignment(toggleBtn, Pos.CENTER_RIGHT);
+        StackPane.setMargin(toggleBtn, new Insets(0, 10, 0, 0));
+
+        toggleBtn.setOnAction(e -> {
+            boolean showing = visibleField.isVisible();
+
+            visibleField.setVisible(!showing);
+            visibleField.setManaged(!showing);
+
+            passwordField.setVisible(showing);
+            passwordField.setManaged(showing);
+
+            toggleBtn.setText(showing ? "👁" : "🙈");
+        });
+
+        return fieldBox(labelText, stack);
     }
 
     private void showAssignAccessDialog(Event currentEvent, javafx.scene.Node ownerNode) {
@@ -441,9 +560,7 @@ public class AdminDashboardView {
         subtitle.setWrapText(true);
         subtitle.getStyleClass().add("assign-dialog-subtitle");
 
-        FlowPane pillPane = new FlowPane();
-        pillPane.setHgap(10);
-        pillPane.setVgap(10);
+        VBox pillPane = new VBox(12);
 
         List<String> currentAssignments = currentEvent.getCoordinators() == null
                 ? new ArrayList<>()
@@ -455,6 +572,8 @@ public class AdminDashboardView {
         for (User coordinator : coordinators) {
             Button pillBtn = new Button(coordinator.getName());
             pillBtn.getStyleClass().add("assign-pill");
+            pillBtn.setMaxWidth(Double.MAX_VALUE);
+            pillBtn.setPrefWidth(220);
 
             boolean isSelected = currentAssignments.contains(coordinator.getName());
             pillBtn.setUserData(isSelected);
@@ -481,9 +600,11 @@ public class AdminDashboardView {
             pillPane.getChildren().add(pillBtn);
         }
 
+        pillPane.setFillWidth(true);
+
         ScrollPane scrollPane = new ScrollPane(pillPane);
         scrollPane.setFitToWidth(true);
-        scrollPane.setPrefHeight(170);
+        scrollPane.setPrefHeight(220);
         scrollPane.getStyleClass().add("assign-dialog-scroll");
 
         Button cancelBtn = new Button("Cancel");

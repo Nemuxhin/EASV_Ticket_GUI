@@ -154,3 +154,19 @@
 .assign-pill-selected:hover {
     -fx-background-color: #C05B47;
 }
+
+/* --- PASSWORD TOGGLE INSIDE FIELD --- */
+.password-toggle-inside-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #718096;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+    -fx-padding: 0 4px 0 4px;
+    -fx-border-color: transparent;
+    -fx-background-radius: 0;
+}
+
+.password-toggle-inside-btn:hover {
+    -fx-text-fill: #1A202C;
+    -fx-background-color: transparent;
+}

@@ -20,4 +20,16 @@ public class UserController {
     public void deleteUser(User user) {
         userManager.deleteUser(user);
     }
+
+    public String validateCoordinatorInput(String name, String email, String username, String password) {
+        return userManager.validateCoordinatorInput(name, email, username, password);
+    }
+
+    public boolean isValidEmail(String email) {
+        return userManager.isValidEmail(email);
+    }
+
+    public void updateUser(User user, String name, String email, String username, String password) {
+        userManager.updateUser(user, name, email, username, password);
+    }
 }

@@ -9,14 +9,11 @@ import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
-import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
@@ -28,6 +25,9 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -66,10 +66,10 @@ public class CoordinatorDashboardView {
         VBox content = "Manage Access".equals(activeTab)
                 ? createManageAccessContent()
                 : "Edit Event".equals(activeTab)
-                ? createEditEventContent()
-                : "Create Event".equals(activeTab)
-                ? createCreateEventContent()
-                : createEventsContent();
+                  ? createEditEventContent()
+                  : "Create Event".equals(activeTab)
+                    ? createCreateEventContent()
+                    : createEventsContent();
 
         ScrollPane scrollPane = new ScrollPane(content);
         scrollPane.setFitToWidth(true);
@@ -272,7 +272,7 @@ public class CoordinatorDashboardView {
         assignedHead.getStyleClass().add("notes-head");
 
         FlowPane pillBox = new FlowPane(5, 5);
-        if (event.getCoordinators().length == 0) {
+        if (event.getCoordinators() == null || event.getCoordinators().length == 0) {
             Label emptyLbl = new Label("No coordinators assigned yet");
             emptyLbl.getStyleClass().add("card-text");
             pillBox.getChildren().add(emptyLbl);
@@ -284,10 +284,10 @@ public class CoordinatorDashboardView {
             }
         }
 
-        Button assignBtn = new Button("\uD83D\uDC65 Assign Access");
+        Button assignBtn = new Button("\uD83D\uDC65 Assign Coordinators");
         assignBtn.getStyleClass().add("primary-btn");
         assignBtn.setMaxWidth(Double.MAX_VALUE);
-        assignBtn.setOnAction(e -> showAssignAccessDialog(event));
+        assignBtn.setOnAction(e -> showAssignAccessDialog(event, assignBtn));
 
         Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
         deleteBtn.getStyleClass().add("danger-btn");
@@ -541,50 +541,133 @@ public class CoordinatorDashboardView {
         mainView.showCoordinatorDashboard("Events");
     }
 
-    private void showAssignAccessDialog(Event currentEvent) {
+    private void showAssignAccessDialog(Event currentEvent, javafx.scene.Node ownerNode) {
         List<User> coordinators = userController.getUsersByRole("Event Coordinator");
         if (coordinators.isEmpty()) {
             showInfo("No event coordinators are available yet.");
             return;
         }
 
-        Dialog<String[]> dialog = new Dialog<>();
-        dialog.setTitle("Assign Access");
-        dialog.setHeaderText("Select event coordinators");
+        Stage popup = new Stage();
+        popup.initModality(Modality.APPLICATION_MODAL);
+        popup.initStyle(StageStyle.TRANSPARENT);
+        popup.setResizable(false);
 
-        ButtonType saveButtonType = new ButtonType("Save Access", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
-
-        VBox content = new VBox(10);
-        content.setPadding(new Insets(20));
-
-        List<CheckBox> boxes = new ArrayList<>();
-        List<String> currentAssignments = Arrays.asList(currentEvent.getCoordinators());
-        for (User coordinator : coordinators) {
-            CheckBox box = new CheckBox(coordinator.getName() + " (" + coordinator.getEmail() + ")");
-            box.setSelected(currentAssignments.contains(coordinator.getName()));
-            boxes.add(box);
-            content.getChildren().add(box);
+        if (ownerNode != null && ownerNode.getScene() != null && ownerNode.getScene().getWindow() != null) {
+            popup.initOwner(ownerNode.getScene().getWindow());
         }
 
-        dialog.getDialogPane().setContent(content);
-        dialog.setResultConverter(buttonType -> {
-            if (buttonType != saveButtonType) {
-                return null;
+        VBox overlay = new VBox();
+        overlay.setAlignment(Pos.CENTER);
+        overlay.setPadding(new Insets(30));
+        overlay.setStyle("-fx-background-color: transparent;");
+
+        VBox card = new VBox(18);
+        card.getStyleClass().add("assign-dialog-card");
+        card.setPrefWidth(460);
+        card.setMaxWidth(460);
+
+        HBox header = new HBox();
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label title = new Label("Assign Coordinators");
+        title.getStyleClass().add("assign-dialog-title");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button closeBtn = new Button("✕");
+        closeBtn.getStyleClass().add("assign-dialog-close");
+        closeBtn.setOnAction(e -> popup.close());
+
+        header.getChildren().addAll(title, spacer, closeBtn);
+
+        Label subtitle = new Label("Click coordinators to assign or remove them.");
+        subtitle.setWrapText(true);
+        subtitle.getStyleClass().add("assign-dialog-subtitle");
+
+        VBox pillPane = new VBox(12);
+
+        List<String> currentAssignments = currentEvent.getCoordinators() == null
+                ? new ArrayList<>()
+                : new ArrayList<>(Arrays.asList(currentEvent.getCoordinators()));
+
+        List<Button> selectorButtons = new ArrayList<>();
+        List<User> buttonUsers = new ArrayList<>();
+
+        for (User coordinator : coordinators) {
+            Button pillBtn = new Button(coordinator.getName());
+            pillBtn.getStyleClass().add("assign-pill");
+            pillBtn.setMaxWidth(Double.MAX_VALUE);
+            pillBtn.setPrefWidth(220);
+
+            boolean isSelected = currentAssignments.contains(coordinator.getName());
+            pillBtn.setUserData(isSelected);
+
+            if (isSelected) {
+                pillBtn.getStyleClass().add("assign-pill-selected");
             }
+
+            pillBtn.setOnAction(e -> {
+                boolean selected = (boolean) pillBtn.getUserData();
+                if (selected) {
+                    pillBtn.setUserData(false);
+                    pillBtn.getStyleClass().remove("assign-pill-selected");
+                } else {
+                    pillBtn.setUserData(true);
+                    if (!pillBtn.getStyleClass().contains("assign-pill-selected")) {
+                        pillBtn.getStyleClass().add("assign-pill-selected");
+                    }
+                }
+            });
+
+            selectorButtons.add(pillBtn);
+            buttonUsers.add(coordinator);
+            pillPane.getChildren().add(pillBtn);
+        }
+
+        pillPane.setFillWidth(true);
+
+        ScrollPane scrollPane = new ScrollPane(pillPane);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setPrefHeight(220);
+        scrollPane.getStyleClass().add("assign-dialog-scroll");
+
+        Button cancelBtn = new Button("Cancel");
+        cancelBtn.getStyleClass().add("secondary-btn");
+        cancelBtn.setOnAction(e -> popup.close());
+
+        Button saveBtn = new Button("Save Changes");
+        saveBtn.getStyleClass().add("primary-btn");
+        saveBtn.setOnAction(e -> {
             List<String> selected = new ArrayList<>();
-            for (int i = 0; i < boxes.size(); i++) {
-                if (boxes.get(i).isSelected()) {
-                    selected.add(coordinators.get(i).getName());
+
+            for (int i = 0; i < selectorButtons.size(); i++) {
+                if ((boolean) selectorButtons.get(i).getUserData()) {
+                    selected.add(buttonUsers.get(i).getName());
                 }
             }
-            return selected.toArray(new String[0]);
-        });
 
-        dialog.showAndWait().ifPresent(selected -> {
-            eventController.setCoordinators(currentEvent, selected);
+            eventController.setCoordinators(currentEvent, selected.toArray(new String[0]));
+            popup.close();
             mainView.showCoordinatorDashboard("Manage Access");
         });
+
+        HBox actions = new HBox(12, cancelBtn, saveBtn);
+        actions.setAlignment(Pos.CENTER_RIGHT);
+
+        card.getChildren().addAll(header, subtitle, new Separator(), scrollPane, actions);
+        overlay.getChildren().add(card);
+
+        Scene scene = new Scene(overlay);
+        scene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+
+        if (ownerNode != null && ownerNode.getScene() != null) {
+            scene.getStylesheets().addAll(ownerNode.getScene().getStylesheets());
+        }
+
+        popup.setScene(scene);
+        popup.showAndWait();
     }
 
     private void showInfo(String message) {
