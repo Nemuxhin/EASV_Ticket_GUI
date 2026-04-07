@@ -224,6 +224,11 @@ public class CoordinatorDashboardView {
         sellBtn.setMaxWidth(Double.MAX_VALUE);
         sellBtn.setOnAction(e -> mainView.showTicketSales(event));
 
+        Button directionsBtn = new Button("Directions");
+        directionsBtn.getStyleClass().add("secondary-btn");
+        directionsBtn.setMaxWidth(Double.MAX_VALUE);
+        directionsBtn.setOnAction(e -> MapViewHelper.openDirections(event));
+
         Button editBtn = new Button("Edit Event");
         editBtn.getStyleClass().add("secondary-btn");
         editBtn.setMaxWidth(Double.MAX_VALUE);
@@ -246,6 +251,7 @@ public class CoordinatorDashboardView {
                 new Separator(),
                 priceLbl,
                 sellBtn,
+                directionsBtn,
                 editBtn,
                 deleteBtn
         );
@@ -383,7 +389,9 @@ public class CoordinatorDashboardView {
                 top,
                 form.titleBox,
                 form.dateTimeRow,
+                form.endDateTimeRow,
                 form.locationBox,
+                form.guidanceBox,
                 form.extraRow,
                 form.notesBox,
                 actions
@@ -459,7 +467,9 @@ public class CoordinatorDashboardView {
                 top,
                 form.titleBox,
                 form.dateTimeRow,
+                form.endDateTimeRow,
                 form.locationBox,
+                form.guidanceBox,
                 form.extraRow,
                 form.notesBox,
                 actions
@@ -490,14 +500,28 @@ public class CoordinatorDashboardView {
             return;
         }
 
+        if (form.hasPartialEndSelection()) {
+            AlertHelper.showError("Invalid Event", "Please choose both an end date and an end time, or leave both empty.");
+            return;
+        }
+
+        if (form.hasEndSelection()) {
+            LocalDateTime endDateTime = LocalDateTime.of(form.endDatePicker.getValue(), LocalTime.parse(form.endTimeBox.getValue(), TIME_FORMATTER));
+            if (!endDateTime.isAfter(startDateTime)) {
+                AlertHelper.showError("Invalid Event", "The event end time must be after the start time.");
+                return;
+            }
+        }
+
         Event event = new Event(
                 form.titleField.getText().trim(),
                 buildDateTimeValue(form.startDatePicker.getValue(), form.startTimeBox.getValue()),
-                "",
+                form.buildEndDateTimeValue(),
                 form.locationField.getText().trim(),
-                "",
+                form.guidanceField.getText().trim(),
                 form.notesArea.getText().trim(),
                 normalizePrice(form.priceField.getText()),
+                form.capacityField.getText().trim(),
                 "Available",
                 new String[0]
         );
@@ -527,14 +551,28 @@ public class CoordinatorDashboardView {
             return;
         }
 
+        if (form.hasPartialEndSelection()) {
+            AlertHelper.showError("Invalid Event", "Please choose both an end date and an end time, or leave both empty.");
+            return;
+        }
+
+        if (form.hasEndSelection()) {
+            LocalDateTime endDateTime = LocalDateTime.of(form.endDatePicker.getValue(), LocalTime.parse(form.endTimeBox.getValue(), TIME_FORMATTER));
+            if (!endDateTime.isAfter(startDateTime)) {
+                AlertHelper.showError("Invalid Event", "The event end time must be after the start time.");
+                return;
+            }
+        }
+
         Event updatedEvent = new Event(
                 form.titleField.getText().trim(),
                 buildDateTimeValue(form.startDatePicker.getValue(), form.startTimeBox.getValue()),
-                "",
+                form.buildEndDateTimeValue(),
                 form.locationField.getText().trim(),
-                "",
+                form.guidanceField.getText().trim(),
                 form.notesArea.getText().trim(),
                 normalizePrice(form.priceField.getText()),
+                form.capacityField.getText().trim(),
                 currentEvent.getStatus(),
                 currentEvent.getCoordinators()
         );
@@ -759,11 +797,30 @@ public class CoordinatorDashboardView {
             return;
         }
 
-        try {
-            LocalDateTime parsedDateTime = LocalDateTime.parse(dateTimeValue, DISPLAY_DATE_TIME);
+        LocalDateTime parsedDateTime = parseDateTimeValue(dateTimeValue);
+        if (parsedDateTime != null) {
             datePicker.setValue(parsedDateTime.toLocalDate());
             timeBox.setValue(parsedDateTime.toLocalTime().format(TIME_FORMATTER));
+        }
+    }
+
+    private LocalDateTime parseDateTimeValue(String dateTimeValue) {
+        for (DateTimeFormatter formatter : new DateTimeFormatter[]{DISPLAY_DATE_TIME, DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S")}) {
+            try {
+                return LocalDateTime.parse(dateTimeValue.trim(), formatter);
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+
+        try {
+            return LocalDateTime.parse(dateTimeValue.trim().replace(" ", "T"));
         } catch (DateTimeParseException ignored) {
+        }
+
+        try {
+            return LocalDate.parse(dateTimeValue.trim(), FORM_DATE).atStartOfDay();
+        } catch (DateTimeParseException ignored) {
+            return null;
         }
     }
 
@@ -782,14 +839,19 @@ public class CoordinatorDashboardView {
         private final TextField titleField = new TextField();
         private final DatePicker startDatePicker = new DatePicker();
         private final ComboBox<String> startTimeBox = new ComboBox<>(FXCollections.observableArrayList(generateTimes()));
+        private final DatePicker endDatePicker = new DatePicker();
+        private final ComboBox<String> endTimeBox = new ComboBox<>(FXCollections.observableArrayList(generateTimes()));
         private final TextField locationField = new TextField();
+        private final TextField guidanceField = new TextField();
         private final TextField capacityField = new TextField();
         private final TextField priceField = new TextField();
         private final TextArea notesArea = new TextArea();
 
         private final VBox titleBox;
         private final HBox dateTimeRow;
+        private final HBox endDateTimeRow;
         private final VBox locationBox;
+        private final VBox guidanceBox;
         private final HBox extraRow;
         private final VBox notesBox;
 
@@ -800,6 +862,7 @@ public class CoordinatorDashboardView {
         private EventEditorForm(Event seedEvent) {
             titleField.setPromptText("Enter event title");
             locationField.setPromptText("Enter venue location");
+            guidanceField.setPromptText("Optional directions or meeting point");
             capacityField.setPromptText("e.g., 300");
             priceField.setPromptText("e.g., 150 (or 0 for free)");
             priceField.setTextFormatter(numericFormatter());
@@ -813,17 +876,24 @@ public class CoordinatorDashboardView {
             capacityField.getStyleClass().add("input-field");
             startDatePicker.getStyleClass().add("input-field");
             startTimeBox.getStyleClass().add("input-field");
+            endDatePicker.getStyleClass().add("input-field");
+            endTimeBox.getStyleClass().add("input-field");
+            guidanceField.getStyleClass().add("input-field");
             priceField.getStyleClass().add("input-field");
             startTimeBox.setPromptText("--:--");
             startTimeBox.setMaxWidth(Double.MAX_VALUE);
+            endTimeBox.setPromptText("--:--");
+            endTimeBox.setMaxWidth(Double.MAX_VALUE);
 
             if (seedEvent != null) {
                 titleField.setText(seedEvent.getTitle());
                 setDateTimeFields(seedEvent.getStartDateTime(), startDatePicker, startTimeBox);
+                setDateTimeFields(seedEvent.getEndDateTime(), endDatePicker, endTimeBox);
                 locationField.setText(seedEvent.getLocation());
+                guidanceField.setText(seedEvent.getLocationGuidance());
                 notesArea.setText(seedEvent.getNotes());
                 priceField.setText(seedEvent.getPrice().replace("DKK", "").replace("Free", "0").trim());
-                capacityField.setText("300");
+                capacityField.setText(seedEvent.getCapacity());
             }
 
             titleBox = fieldBox("Event Title *", titleField);
@@ -831,12 +901,34 @@ public class CoordinatorDashboardView {
                     fieldBox("Event Date *", startDatePicker),
                     fieldBox("Event Time *", startTimeBox)
             );
+            endDateTimeRow = twoColRow(
+                    fieldBox("End Date", endDatePicker),
+                    fieldBox("End Time", endTimeBox)
+            );
             locationBox = fieldBox("Venue *", locationField);
+            guidanceBox = fieldBox("Location Guidance", guidanceField);
             extraRow = twoColRow(
                     fieldBox("Capacity *", capacityField),
                     fieldBox("Price (DKK) *", priceField)
             );
             notesBox = fieldBox("Notes", notesArea);
+        }
+
+        private boolean hasEndSelection() {
+            return endDatePicker.getValue() != null && endTimeBox.getValue() != null && !endTimeBox.getValue().isBlank();
+        }
+
+        private boolean hasPartialEndSelection() {
+            boolean hasDate = endDatePicker.getValue() != null;
+            boolean hasTime = endTimeBox.getValue() != null && !endTimeBox.getValue().isBlank();
+            return hasDate != hasTime;
+        }
+
+        private String buildEndDateTimeValue() {
+            if (!hasEndSelection()) {
+                return "";
+            }
+            return buildDateTimeValue(endDatePicker.getValue(), endTimeBox.getValue());
         }
     }
 

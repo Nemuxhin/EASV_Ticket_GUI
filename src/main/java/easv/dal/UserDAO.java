@@ -4,44 +4,67 @@ import easv.be.User;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class UserDAO {
 
-    private static final List<User> USERS = new ArrayList<>();
-
-    static {
-        if (USERS.isEmpty()) {
-            USERS.add(new User("Admin User", "admin", "1234", "admin@easv.dk", "Admin"));
-
-            USERS.add(new User("Sarah Jensen", "sarah", "1234", "s.jensen@easv.dk", "Event Coordinator"));
-            USERS.add(new User("Mikkel Andersen", "mikkel", "1234", "m.andersen@easv.dk", "Event Coordinator"));
-            USERS.add(new User("Laura Nielsen", "laura", "1234", "l.nielsen@easv.dk", "Event Coordinator"));
-            USERS.add(new User("Peter Christiansen", "peter", "1234", "p.chris@easv.dk", "Event Coordinator"));
-        }
-    }
-
     public List<User> getAllUsers() {
-        return new ArrayList<>(USERS);
+        String sql = "SELECT Names, Username, Password, UserEmail, Role FROM Users";
+        return queryUsers(sql);
     }
 
     public List<User> getUsersByRole(String role) {
-        List<User> result = new ArrayList<>();
+        String sql = "SELECT Names, Username, Password, UserEmail, Role FROM Users WHERE Role = ?";
+        List<User> users = new ArrayList<>();
 
-        for (User user : USERS) {
-            if (user.getRole().equalsIgnoreCase(role)) {
-                result.add(user);
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, role);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    users.add(mapUser(resultSet));
+                }
             }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not load users by role.", ex);
         }
 
-        return result;
+        return users;
     }
 
     public void addUser(User user) {
-        USERS.add(user);
+        String sql = "INSERT INTO Users (Names, Username, Password, UserEmail, Role) VALUES (?, ?, ?, ?, ?)";
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, user.getName());
+            statement.setString(2, user.getUsername());
+            statement.setString(3, user.getPassword());
+            statement.setString(4, user.getEmail());
+            statement.setString(5, user.getRole());
+            statement.executeUpdate();
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not add user.", ex);
+        }
     }
 
     public void deleteUser(User user) {
-        USERS.remove(user);
+        String sql = "DELETE FROM Users WHERE Username = ?";
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, user.getUsername());
+            statement.executeUpdate();
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not delete user.", ex);
+        }
     }
 
     public void updateUser(User user) {
@@ -49,16 +72,55 @@ public class UserDAO {
     }
 
     public User findUser(String username, String password, String role) {
-        for (User user : USERS) {
-            boolean sameUsername = user.getUsername().equalsIgnoreCase(username);
-            boolean samePassword = user.getPassword().equals(password);
-            boolean sameRole = user.getRole().equalsIgnoreCase(role);
+        String sql = "SELECT Names, Username, Password, UserEmail, Role FROM Users WHERE Username = ? AND Password = ? AND Role = ?";
 
-            if (sameUsername && samePassword && sameRole) {
-                return user;
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, username);
+            statement.setString(2, password);
+            statement.setString(3, role);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return mapUser(resultSet);
+                }
             }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not find user.", ex);
         }
 
         return null;
+    }
+
+    public boolean validateLogin(String username, String password, String role) {
+        return findUser(username, password, role) != null;
+    }
+
+    private List<User> queryUsers(String sql) {
+        List<User> users = new ArrayList<>();
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+
+            while (resultSet.next()) {
+                users.add(mapUser(resultSet));
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not load users.", ex);
+        }
+
+        return users;
+    }
+
+    private User mapUser(ResultSet resultSet) throws SQLException {
+        return new User(
+                resultSet.getString("Names"),
+                resultSet.getString("Username"),
+                resultSet.getString("Password"),
+                resultSet.getString("UserEmail"),
+                resultSet.getString("Role")
+        );
     }
 }

@@ -8,11 +8,12 @@ public class Event {
     private String locationGuidance;
     private String notes;
     private String price;
+    private String capacity;
     private String status;
     private String[] coordinators;
 
     public Event(String title, String date, String location, String notes, String price, String status, String[] coordinators) {
-        this(title, date, "", location, "", notes, price, status, coordinators);
+        this(title, date, "", location, "", notes, price, "", status, coordinators);
     }
 
     public Event(String title,
@@ -23,7 +24,7 @@ public class Event {
                  String notes,
                  String price,
                  String[] coordinators) {
-        this(title, startDateTime, endDateTime, location, locationGuidance, notes, price, "Available", coordinators);
+        this(title, startDateTime, endDateTime, location, locationGuidance, notes, price, "", "Available", coordinators);
     }
 
     public Event(String title,
@@ -35,6 +36,19 @@ public class Event {
                  String price,
                  String status,
                  String[] coordinators) {
+        this(title, startDateTime, endDateTime, location, locationGuidance, notes, price, "", status, coordinators);
+    }
+
+    public Event(String title,
+                 String startDateTime,
+                 String endDateTime,
+                 String location,
+                 String locationGuidance,
+                 String notes,
+                 String price,
+                 String capacity,
+                 String status,
+                 String[] coordinators) {
         this.title = title;
         this.startDateTime = startDateTime;
         this.endDateTime = endDateTime == null ? "" : endDateTime;
@@ -42,6 +56,7 @@ public class Event {
         this.locationGuidance = locationGuidance == null ? "" : locationGuidance;
         this.notes = notes == null ? "" : notes;
         this.price = price;
+        this.capacity = capacity == null ? "" : capacity;
         this.status = status == null ? "Available" : status;
         this.coordinators = coordinators == null ? new String[0] : coordinators;
     }
@@ -54,6 +69,7 @@ public class Event {
     public String getLocationGuidance() { return locationGuidance; }
     public String getNotes() { return notes; }
     public String getPrice() { return price; }
+    public String getCapacity() { return capacity; }
     public String getStatus() { return status; }
     public String[] getCoordinators() { return coordinators; }
 
@@ -68,6 +84,7 @@ public class Event {
     public void setLocationGuidance(String locationGuidance) { this.locationGuidance = locationGuidance == null ? "" : locationGuidance; }
     public void setNotes(String notes) { this.notes = notes == null ? "" : notes; }
     public void setPrice(String price) { this.price = price; }
+    public void setCapacity(String capacity) { this.capacity = capacity == null ? "" : capacity; }
     public void setStatus(String status) { this.status = status == null ? "Available" : status; }
     public void setCoordinators(String[] coordinators) { this.coordinators = coordinators == null ? new String[0] : coordinators; }
 }
