@@ -1,0 +1,77 @@
+/* --- GLOBAL --- */
+.main-bg { -fx-background-color: #F8F9FA; -fx-font-family: "Segoe UI", Helvetica, Arial, sans-serif; }
+.logo-large { -fx-font-size: 28px; -fx-font-weight: bold; -fx-text-fill: #1A202C; }
+.logo-small { -fx-font-size: 12px; -fx-text-fill: #718096; }
+.app-title { -fx-font-size: 18px; -fx-text-fill: #D9705A; -fx-padding: 10 0 0 0; }
+.app-subtitle { -fx-font-size: 12px; -fx-text-fill: #A0AEC0; }
+.page-title-center { -fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #1A202C; }
+.page-subtitle-center { -fx-font-size: 13px; -fx-text-fill: #718096; }
+.page-title { -fx-font-size: 24px; -fx-font-weight: bold; -fx-text-fill: #1A202C; }
+.page-subtitle { -fx-font-size: 14px; -fx-text-fill: #718096; -fx-padding: 0 0 10 0; }
+
+/* --- SIDEBAR (ADMIN & COORD) --- */
+.sidebar { -fx-background-color: #1A202C; }
+.sidebar-logo { -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: white; }
+.sidebar-sub { -fx-font-size: 12px; -fx-text-fill: #D9705A; -fx-padding: 0 0 10 0;}
+.sidebar-role-box { -fx-background-color: #2D3748; -fx-padding: 10px; -fx-background-radius: 6px; }
+.sidebar-menu-btn {
+    -fx-background-color: transparent; -fx-text-fill: white;
+    -fx-padding: 12px; -fx-font-size: 14px; -fx-cursor: hand; -fx-background-radius: 6px;
+}
+.sidebar-menu-btn:hover { -fx-background-color: #2D3748; }
+.sidebar-menu-btn-active {
+    -fx-background-color: #D9705A; -fx-text-fill: white;
+    -fx-padding: 12px; -fx-font-size: 14px; -fx-font-weight: bold; -fx-background-radius: 6px;
+}
+.sidebar-logout {
+    -fx-background-color: transparent; -fx-text-fill: #A0AEC0; -fx-border-color: #4A5568;
+    -fx-border-radius: 6px; -fx-padding: 10px; -fx-cursor: hand;
+}
+.sidebar-logout:hover { -fx-background-color: #2D3748; -fx-text-fill: white; }
+
+/* --- PORTAL & LOGIN --- */
+.portal-card {
+    -fx-background-color: white; -fx-border-color: #E2E8F0; -fx-border-radius: 8px;
+    -fx-background-radius: 8px; -fx-padding: 30px; -fx-pref-width: 220px; -fx-pref-height: 200px; -fx-cursor: hand;
+}
+.portal-card:hover { -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.05), 10, 0, 0, 4); -fx-border-color: #CBD5E0; }
+.portal-icon { -fx-font-size: 32px; -fx-text-fill: #D9705A; -fx-background-color: #FFF5F5; -fx-background-radius: 50%; -fx-padding: 15px; }
+.login-form { -fx-background-color: white; -fx-border-color: #E2E8F0; -fx-border-radius: 8px; -fx-background-radius: 8px; }
+.form-label { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #4A5568; }
+.input-field { -fx-background-color: white; -fx-border-color: #CBD5E0; -fx-border-radius: 4px; -fx-padding: 10px; -fx-font-size: 14px; }
+.input-field:focused { -fx-border-color: #D9705A; }
+
+/* --- BUTTONS --- */
+.primary-btn { -fx-background-color: #D9705A; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6px; -fx-padding: 12px; -fx-cursor: hand; }
+.primary-btn:hover { -fx-background-color: #C05B47; }
+.secondary-btn { -fx-background-color: #F1F5F9; -fx-text-fill: #4A5568; -fx-font-weight: bold; -fx-background-radius: 6px; -fx-padding: 12px; -fx-cursor: hand; }
+.secondary-btn:hover { -fx-background-color: #E2E8F0; }
+.danger-btn { -fx-background-color: #E53E3E; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6px; -fx-padding: 12px; -fx-cursor: hand; }
+.danger-btn:hover { -fx-background-color: #C53030; }
+
+/* --- TOP BAR (CUSTOMER PORTAL) --- */
+.dark-top-bar { -fx-background-color: #1A202C; }
+.top-bar-logo { -fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: white; }
+.top-bar-sub { -fx-font-size: 11px; -fx-text-fill: #D9705A; }
+.secondary-btn-dark { -fx-background-color: #2D3748; -fx-text-fill: white; -fx-background-radius: 4px; -fx-padding: 8px 15px; -fx-cursor: hand; }
+.secondary-btn-dark:hover { -fx-background-color: #4A5568; }
+.search-bar { -fx-background-color: white; -fx-border-color: #E2E8F0; -fx-border-radius: 20px; -fx-background-radius: 20px; -fx-padding: 10px 20px; -fx-font-size: 14px; }
+
+/* --- EVENT CARDS --- */
+.event-card { -fx-background-color: white; -fx-border-color: #E2E8F0; -fx-border-radius: 8px; -fx-background-radius: 8px; -fx-padding: 20px; -fx-pref-width: 330px; }
+.card-title { -fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #1A202C; }
+.card-title-large { -fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #1A202C; }
+.card-text { -fx-font-size: 13px; -fx-text-fill: #4A5568; }
+.notes-head { -fx-font-size: 11px; -fx-text-fill: #A0AEC0; -fx-padding: 5 0 0 0; }
+.price-text { -fx-font-size: 18px; -fx-text-fill: #2D3748; }
+.price-text-large { -fx-font-size: 24px; -fx-text-fill: #1A202C; }
+.status-avail { -fx-background-color: #DEF7EC; -fx-text-fill: #03543F; -fx-padding: 4px 8px; -fx-background-radius: 10px; -fx-font-size: 11px; }
+.status-fast { -fx-background-color: #FEF3C7; -fx-text-fill: #92400E; -fx-padding: 4px 8px; -fx-background-radius: 10px; -fx-font-size: 11px; }
+
+/* --- COORD PILLS & BUY TICKETS --- */
+.coord-pill { -fx-background-color: #DEF7EC; -fx-text-fill: #03543F; -fx-padding: 4px 10px; -fx-background-radius: 12px; -fx-font-size: 11px; }
+.buy-ticket-card { -fx-background-color: white; -fx-border-color: #E2E8F0; -fx-border-radius: 8px; -fx-background-radius: 8px; -fx-padding: 30px; -fx-max-width: 600px; }
+.ticket-type-box { -fx-border-color: #E2E8F0; -fx-border-radius: 6px; -fx-padding: 15px 30px; -fx-cursor: hand; }
+.ticket-type-box-active { -fx-border-color: #D9705A; -fx-border-width: 2px; -fx-border-radius: 6px; -fx-padding: 14px 29px; -fx-cursor: hand; }
+.qty-btn { -fx-background-color: white; -fx-border-color: #E2E8F0; -fx-border-radius: 4px; -fx-font-size: 16px; -fx-padding: 5px 15px; -fx-cursor: hand;}
+.qty-btn:hover { -fx-background-color: #F8F9FA; }
