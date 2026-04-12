@@ -3,6 +3,7 @@ package easv.gui;
 import easv.be.Event;
 import easv.be.User;
 import easv.controller.EventController;
+import easv.controller.TicketController;
 import easv.controller.UserController;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -12,6 +13,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
@@ -36,17 +38,22 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.UnaryOperator;
 
 public class CoordinatorDashboardView {
     private static final DateTimeFormatter DISPLAY_DATE_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy 'at' HH:mm", Locale.ENGLISH);
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter FORM_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final String ALL_COORDINATORS = "All Coordinators";
 
     private final MainView mainView;
     private final EventController eventController;
+    private final TicketController ticketController;
     private final UserController userController;
     private final String activeTab;
 
@@ -54,6 +61,7 @@ public class CoordinatorDashboardView {
                                     UserController userController, String activeTab) {
         this.mainView = mainView;
         this.eventController = eventController;
+        this.ticketController = new TicketController();
         this.userController = userController;
         this.activeTab = activeTab;
     }
@@ -63,13 +71,16 @@ public class CoordinatorDashboardView {
         layout.getStyleClass().add("main-bg");
         layout.setLeft(createSidebar());
 
-        VBox content = "Manage Access".equals(activeTab)
-                ? createManageAccessContent()
-                : "Edit Event".equals(activeTab)
-                  ? createEditEventContent()
-                  : "Create Event".equals(activeTab)
-                    ? createCreateEventContent()
-                    : createEventsContent();
+        VBox content;
+        if ("Manage Access".equals(activeTab)) {
+            content = createManageAccessContent();
+        } else if ("Edit Event".equals(activeTab)) {
+            content = createEditEventContent();
+        } else if ("Create Event".equals(activeTab)) {
+            content = createCreateEventContent();
+        } else {
+            content = createEventsContent();
+        }
 
         ScrollPane scrollPane = new ScrollPane(content);
         scrollPane.setFitToWidth(true);
@@ -100,6 +111,12 @@ public class CoordinatorDashboardView {
                 e -> mainView.showCoordinatorDashboard("Manage Access")
         );
 
+        Button soldTicketsBtn = createMenuBtn(
+                "Sold Tickets",
+                false,
+                e -> mainView.showSoldTickets("Coordinator")
+        );
+
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
 
@@ -108,7 +125,7 @@ public class CoordinatorDashboardView {
         logoutBtn.setMaxWidth(Double.MAX_VALUE);
         logoutBtn.setOnAction(e -> mainView.showPortalSelection());
 
-        sidebar.getChildren().addAll(logo, eventsBtn, accessBtn, spacer, logoutBtn);
+        sidebar.getChildren().addAll(logo, eventsBtn, accessBtn, soldTicketsBtn, spacer, logoutBtn);
         return sidebar;
     }
 
@@ -124,6 +141,8 @@ public class CoordinatorDashboardView {
         searchBar.getStyleClass().add("search-bar");
         searchBar.setPrefWidth(520);
 
+        ComboBox<String> coordinatorFilter = createCoordinatorFilterBox();
+
         Button specialTicketsBtn = new Button("✦ Special Tickets");
         specialTicketsBtn.getStyleClass().add("secondary-btn");
         specialTicketsBtn.setOnAction(e ->
@@ -134,15 +153,16 @@ public class CoordinatorDashboardView {
         createBtn.getStyleClass().add("primary-btn");
         createBtn.setOnAction(e -> mainView.showCoordinatorDashboard("Create Event"));
 
-        HBox toolbar = new HBox(12, searchBar, specialTicketsBtn, createBtn);
+        HBox toolbar = new HBox(12, searchBar, coordinatorFilter, specialTicketsBtn, createBtn);
         toolbar.setAlignment(Pos.CENTER_LEFT);
 
         FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
         grid.setPrefWrapLength(1000);
 
-        for (Event event : eventController.getEvents()) {
-            grid.getChildren().add(createEventCard(event));
-        }
+        Runnable refreshGrid = () -> populateEventGrid(grid, searchBar.getText(), coordinatorFilter.getValue());
+        searchBar.textProperty().addListener((obs, oldValue, newValue) -> refreshGrid.run());
+        coordinatorFilter.valueProperty().addListener((obs, oldValue, newValue) -> refreshGrid.run());
+        refreshGrid.run();
 
         content.getChildren().addAll(title, toolbar, grid);
         return content;
@@ -160,15 +180,91 @@ public class CoordinatorDashboardView {
         searchBar.getStyleClass().add("search-bar");
         searchBar.setMaxWidth(400);
 
+        ComboBox<String> coordinatorFilter = createCoordinatorFilterBox();
+
+        HBox toolbar = new HBox(12, searchBar, coordinatorFilter);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+
         FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
         grid.setPrefWrapLength(1000);
 
+        Runnable refreshGrid = () -> populateAccessGrid(grid, searchBar.getText(), coordinatorFilter.getValue());
+        searchBar.textProperty().addListener((obs, oldValue, newValue) -> refreshGrid.run());
+        coordinatorFilter.valueProperty().addListener((obs, oldValue, newValue) -> refreshGrid.run());
+        refreshGrid.run();
+
+        content.getChildren().addAll(title, toolbar, grid);
+        return content;
+    }
+
+    // (Samu) The overview is rebuilt from the current filters, so the screen stays easy to refresh.
+    private void populateEventGrid(FlowPane grid, String searchText, String coordinatorName) {
+        grid.getChildren().clear();
+
         for (Event event : eventController.getEvents()) {
-            grid.getChildren().add(createAccessCard(event));
+            if (eventMatchesFilters(event, searchText, coordinatorName)) {
+                grid.getChildren().add(createEventCard(event));
+            }
+        }
+    }
+
+    private void populateAccessGrid(FlowPane grid, String searchText, String coordinatorName) {
+        grid.getChildren().clear();
+
+        for (Event event : eventController.getEvents()) {
+            if (eventMatchesFilters(event, searchText, coordinatorName)) {
+                grid.getChildren().add(createAccessCard(event));
+            }
+        }
+    }
+
+    // (Samu) Coordinators come from the same user list used by the assign dialog.
+    private ComboBox<String> createCoordinatorFilterBox() {
+        ComboBox<String> filterBox = new ComboBox<>();
+        filterBox.setItems(FXCollections.observableArrayList(getCoordinatorFilterValues()));
+        filterBox.setValue(ALL_COORDINATORS);
+        filterBox.setPrefWidth(220);
+        filterBox.getStyleClass().add("input-field");
+        return filterBox;
+    }
+
+    private List<String> getCoordinatorFilterValues() {
+        List<String> values = new ArrayList<>();
+        values.add(ALL_COORDINATORS);
+
+        for (User user : userController.getUsersByRole("Event Coordinator")) {
+            values.add(user.getName());
         }
 
-        content.getChildren().addAll(title, searchBar, grid);
-        return content;
+        return values;
+    }
+
+    private boolean eventMatchesFilters(Event event, String searchText, String coordinatorName) {
+        return matchesSearch(event, searchText) && matchesCoordinator(event, coordinatorName);
+    }
+
+    private boolean matchesSearch(Event event, String searchText) {
+        if (searchText == null || searchText.isBlank()) {
+            return true;
+        }
+
+        String value = searchText.trim().toLowerCase(Locale.ENGLISH);
+        return event.getTitle().toLowerCase(Locale.ENGLISH).contains(value)
+                || event.getLocation().toLowerCase(Locale.ENGLISH).contains(value);
+    }
+
+    private boolean matchesCoordinator(Event event, String coordinatorName) {
+        if (coordinatorName == null || coordinatorName.isBlank() || ALL_COORDINATORS.equals(coordinatorName)) {
+            return true;
+        }
+
+        for (String coordinator : event.getCoordinators()) {
+            if (coordinatorName.equals(coordinator)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private VBox createEventCard(Event event) {
@@ -190,11 +286,11 @@ public class CoordinatorDashboardView {
 
         VBox scheduleBox = new VBox(6);
         Label startLbl = new Label("\uD83D\uDD52 " + event.getStartDateTime());
-        startLbl.getStyleClass().add("card-text");
+        startLbl.getStyleClass().add("date-text");
         scheduleBox.getChildren().add(startLbl);
         if (event.hasEndDateTime()) {
             Label endLbl = new Label("Ends: " + event.getEndDateTime());
-            endLbl.getStyleClass().add("card-text");
+            endLbl.getStyleClass().add("date-text");
             scheduleBox.getChildren().add(endLbl);
         }
 
@@ -219,6 +315,8 @@ public class CoordinatorDashboardView {
         Label priceLbl = new Label(event.getPrice());
         priceLbl.getStyleClass().add("price-text");
 
+        VBox ticketTypesBox = createTicketTypesBox(event);
+
         Button sellBtn = new Button("Sell Ticket");
         sellBtn.getStyleClass().add("primary-btn");
         sellBtn.setMaxWidth(Double.MAX_VALUE);
@@ -237,10 +335,7 @@ public class CoordinatorDashboardView {
         Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
         deleteBtn.getStyleClass().add("danger-btn");
         deleteBtn.setMaxWidth(Double.MAX_VALUE);
-        deleteBtn.setOnAction(e -> {
-            eventController.deleteEvent(event);
-            mainView.showCoordinatorDashboard("Events");
-        });
+        deleteBtn.setOnAction(e -> confirmDeleteEvent(event, "Events"));
 
         card.getChildren().addAll(
                 top,
@@ -250,6 +345,7 @@ public class CoordinatorDashboardView {
                 notesLbl,
                 new Separator(),
                 priceLbl,
+                ticketTypesBox,
                 sellBtn,
                 directionsBtn,
                 editBtn,
@@ -277,7 +373,7 @@ public class CoordinatorDashboardView {
         top.getChildren().addAll(titleLbl, spacer, statusLbl);
 
         Label dateLbl = new Label("\uD83D\uDD52 " + event.getStartDateTime());
-        dateLbl.getStyleClass().add("card-text");
+        dateLbl.getStyleClass().add("date-text");
 
         Label locationLbl = new Label("\uD83D\uDCCD " + event.getLocation());
         locationLbl.getStyleClass().add("card-text");
@@ -306,10 +402,7 @@ public class CoordinatorDashboardView {
         Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
         deleteBtn.getStyleClass().add("danger-btn");
         deleteBtn.setMaxWidth(Double.MAX_VALUE);
-        deleteBtn.setOnAction(e -> {
-            eventController.deleteEvent(event);
-            mainView.showCoordinatorDashboard("Manage Access");
-        });
+        deleteBtn.setOnAction(e -> confirmDeleteEvent(event, "Manage Access"));
 
         card.getChildren().addAll(
                 top,
@@ -322,6 +415,51 @@ public class CoordinatorDashboardView {
         );
 
         return card;
+    }
+
+    // (Samu) Shows the ticket options that belong to this event without opening the sales screen.
+    private VBox createTicketTypesBox(Event event) {
+        VBox box = new VBox(8);
+
+        Label heading = new Label("Ticket Types");
+        heading.getStyleClass().add("notes-head");
+
+        FlowPane pills = new FlowPane(6, 6);
+        LinkedHashMap<String, String> ticketTypes = ticketController.getTicketTypePricesForEvent(event);
+
+        for (Map.Entry<String, String> entry : ticketTypes.entrySet()) {
+            Label pill = new Label(entry.getKey() + " - " + entry.getValue());
+            pill.getStyleClass().add("ticket-option-pill");
+            pills.getChildren().add(pill);
+        }
+
+        box.getChildren().addAll(heading, pills);
+        return box;
+    }
+
+    // (Samu) The user must confirm before an event is removed from the overview.
+    private void confirmDeleteEvent(Event event, String screenToRefresh) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Delete Event");
+        alert.setHeaderText(null);
+        alert.setContentText("Delete \"" + event.getTitle() + "\"?");
+
+        Optional<ButtonType> answer = alert.showAndWait();
+        if (answer.isEmpty() || answer.get() != ButtonType.OK) {
+            return;
+        }
+
+        try {
+            boolean deleted = eventController.deleteEvent(event);
+            if (!deleted) {
+                AlertHelper.showError("Delete Failed", "The selected event could not be deleted.");
+                return;
+            }
+
+            mainView.showCoordinatorDashboard(screenToRefresh);
+        } catch (RuntimeException ex) {
+            AlertHelper.showError("Delete Failed", ex.getMessage());
+        }
     }
 
     private Button createMenuBtn(String text, boolean isActive,
@@ -393,6 +531,7 @@ public class CoordinatorDashboardView {
                 form.locationBox,
                 form.guidanceBox,
                 form.extraRow,
+                createTicketToolsRow(form, false),
                 form.notesBox,
                 actions
         );
@@ -471,12 +610,59 @@ public class CoordinatorDashboardView {
                 form.locationBox,
                 form.guidanceBox,
                 form.extraRow,
+                createTicketToolsRow(form, true),
                 form.notesBox,
                 actions
         );
 
         content.getChildren().addAll(headerRow, card);
         return content;
+    }
+
+    // (Samu) These buttons keep ticket work close to the event form.
+    private HBox createTicketToolsRow(EventEditorForm form, boolean eventIsSaved) {
+        Button ticketTypesBtn = new Button("Ticket Types");
+        ticketTypesBtn.getStyleClass().add("secondary-btn");
+        ticketTypesBtn.setOnAction(e -> showTicketTypesPreview(form));
+
+        Button specialTicketsBtn = new Button("Special Tickets");
+        specialTicketsBtn.getStyleClass().add("secondary-btn");
+        specialTicketsBtn.setOnAction(e -> openSpecialTicketView(eventIsSaved));
+
+        HBox row = new HBox(12, ticketTypesBtn, specialTicketsBtn);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    // (Samu) This preview explains the simple ticket prices before saving or editing.
+    private void showTicketTypesPreview(EventEditorForm form) {
+        String rawPrice = form.priceField.getText().trim();
+        if (rawPrice.isBlank()) {
+            AlertHelper.showError("Ticket Types", "Enter the event price first.");
+            return;
+        }
+
+        try {
+            double basePrice = Double.parseDouble(rawPrice.replace(",", "."));
+            String message =
+                    "Standard: " + normalizePrice(String.valueOf(basePrice)) + "\n" +
+                    "VIP: " + normalizePrice(String.valueOf(basePrice * 1.5)) + "\n" +
+                    "Student: " + normalizePrice(String.valueOf(basePrice * 0.7));
+
+            AlertHelper.showInfo("Ticket Types", message);
+        } catch (NumberFormatException ex) {
+            AlertHelper.showError("Ticket Types", "Price must be a number.");
+        }
+    }
+
+    // (Samu) Special tickets need a saved event, otherwise there is nothing safe to connect them to yet.
+    private void openSpecialTicketView(boolean eventIsSaved) {
+        if (!eventIsSaved) {
+            AlertHelper.showInfo("Special Tickets", "Create the event first, then add special tickets.");
+            return;
+        }
+
+        mainView.setContent(new CreateSpecialTicketView(mainView).getView());
     }
 
     private void createEventFromForm(EventEditorForm form) {

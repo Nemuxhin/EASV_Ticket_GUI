@@ -85,12 +85,12 @@ public class TicketSalesView {
 
         eventCard.getChildren().addAll(
                 styleLabel(event.getTitle(), "page-title"),
-                styleLabel("Starts: " + safeText(event.getStartDateTime()), "card-text"),
+                styleLabel("Starts: " + safeText(event.getStartDateTime()), "date-text"),
                 styleLabel("Location: " + safeText(event.getLocation()), "card-text")
         );
 
         if (event.hasEndDateTime()) {
-            eventCard.getChildren().add(styleLabel("Ends: " + safeText(event.getEndDateTime()), "card-text"));
+            eventCard.getChildren().add(styleLabel("Ends: " + safeText(event.getEndDateTime()), "date-text"));
         }
 
         if (event.hasLocationGuidance()) {
@@ -243,16 +243,33 @@ public class TicketSalesView {
                 purchase.getCustomerEmail()
         );
 
-        List<Ticket> tickets = ticketController.createEventTickets(
-                event,
-                customer,
-                purchase.getTicketType(),
-                describeTicketType(purchase.getTicketType()),
-                pricePerTicket,
-                event.getEndDateTime(),
-                event.getLocationGuidance(),
-                purchase.getQuantity()
-        );
+        List<Ticket> tickets;
+
+        try {
+            if (ticketController.isSpecialTicketTypeForEvent(event, purchase.getTicketType())) {
+                // (Samu) Special tickets already have a unique QR/barcode, so we assign existing tickets.
+                tickets = ticketController.claimSpecialTickets(
+                        event,
+                        customer,
+                        purchase.getTicketType(),
+                        purchase.getQuantity()
+                );
+            } else {
+                tickets = ticketController.createEventTickets(
+                        event,
+                        customer,
+                        purchase.getTicketType(),
+                        describeTicketType(purchase.getTicketType()),
+                        pricePerTicket,
+                        event.getEndDateTime(),
+                        event.getLocationGuidance(),
+                        purchase.getQuantity()
+                );
+            }
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            AlertHelper.showError("Purchase Failed", ex.getMessage());
+            return;
+        }
 
         showSuccess(tickets, purchase, formatPrice(purchase.getTotalPrice()));
     }

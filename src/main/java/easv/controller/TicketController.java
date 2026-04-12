@@ -108,6 +108,14 @@ public class TicketController {
         return ticketManager.getTicketTypePricesForEvent(event);
     }
 
+    public boolean isSpecialTicketTypeForEvent(Event event, String ticketType) {
+        return ticketManager.isSpecialTicketTypeForEvent(event, ticketType);
+    }
+
+    public List<Ticket> claimSpecialTickets(Event event, Customer customer, String ticketType, int quantity) {
+        return ticketManager.claimSpecialTickets(event, customer, ticketType, quantity);
+    }
+
     public List<Ticket> getAllTickets() {
         return ticketManager.getAllTickets();
     }

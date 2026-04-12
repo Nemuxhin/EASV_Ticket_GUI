@@ -20,7 +20,7 @@ public class EventManager {
     public void createEvent(Event event) { eventDAO.addEvent(event); }
     public void addEvent(Event event) { eventDAO.addEvent(event); }
     public boolean updateEvent(Event currentEvent, Event updatedEvent) { return eventDAO.updateEvent(currentEvent, updatedEvent); }
-    public void deleteEvent(Event event) { eventDAO.deleteEvent(event); }
+    public boolean deleteEvent(Event event) { return eventDAO.deleteEvent(event); }
     public void assignCoordinator(Event event, String coordinatorName) { eventDAO.assignCoordinator(event, coordinatorName); }
     public void setCoordinators(Event event, String[] coordinators) { eventDAO.setCoordinators(event, coordinators); }
 

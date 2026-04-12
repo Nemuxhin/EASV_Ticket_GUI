@@ -67,10 +67,10 @@ public class EventDAO {
         }
     }
 
-    public void deleteEvent(Event event) {
+    public boolean deleteEvent(Event event) {
         Integer eventId = findEventId(event);
         if (eventId == null) {
-            return;
+            return false;
         }
 
         String sql = "DELETE FROM Events WHERE EventID = ?";
@@ -79,7 +79,7 @@ public class EventDAO {
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setInt(1, eventId);
-            statement.executeUpdate();
+            return statement.executeUpdate() > 0;
         } catch (SQLException ex) {
             throw new RuntimeException("Could not delete event.", ex);
         }

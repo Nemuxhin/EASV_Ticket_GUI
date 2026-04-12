@@ -10,7 +10,10 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.DateCell;
 import javafx.scene.control.DatePicker;
@@ -20,6 +23,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextFormatter;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
@@ -35,7 +39,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 public class CreateSpecialTicketView {
@@ -74,6 +80,8 @@ public class CreateSpecialTicketView {
         Label subtitle = new Label("Generate custom special tickets with unique benefits for your events.");
         subtitle.getStyleClass().add("card-text");
 
+        List<String> discounts = new ArrayList<>();
+
         TextField ticketNameField = new TextField();
         ticketNameField.setPromptText("e.g., One Free Beer, VIP Backstage Pass, Early Entry");
         ticketNameField.getStyleClass().add("input-field");
@@ -91,10 +99,12 @@ public class CreateSpecialTicketView {
         TextField priceField = new TextField();
         priceField.setPromptText("e.g., 0 or 25");
         priceField.getStyleClass().add("input-field");
+        priceField.setTextFormatter(decimalFormatter());
 
         TextField quantityField = new TextField();
         quantityField.setPromptText("e.g., 50");
         quantityField.getStyleClass().add("input-field");
+        quantityField.setTextFormatter(wholeNumberFormatter());
 
         ToggleGroup appliesToGroup = new ToggleGroup();
 
@@ -211,7 +221,7 @@ public class CreateSpecialTicketView {
                     ? " Valid until " + validUntilPicker.getValue() + "."
                     : "";
 
-            previewNotes.setText(descriptionText + validUntilText);
+            previewNotes.setText(mergeNotes(descriptionText + validUntilText, buildDiscountText(discounts)));
 
             String previewTokenSource = titleText + "|" + eventText + "|" + priceText + "|" + benefitText;
             String previewToken = UUID.nameUUIDFromBytes(previewTokenSource.getBytes(StandardCharsets.UTF_8)).toString();
@@ -240,6 +250,12 @@ public class CreateSpecialTicketView {
         VBox existingTicketsList = new VBox(12);
         Runnable refreshExistingTickets = () -> populateExistingSpecialTickets(existingTicketsList, refreshPreview, refreshExistingTicketsPlaceholder());
 
+        Label selectedDiscountsLabel = styleLabel("No discounts selected", "card-text");
+
+        Button discountsButton = new Button("Discounts");
+        discountsButton.getStyleClass().add("secondary-btn");
+        discountsButton.setOnAction(e -> showDiscountDialog(discounts, selectedDiscountsLabel, refreshPreview));
+
         Button generateButton = new Button("+ Generate Special Tickets");
         generateButton.getStyleClass().add("primary-btn");
         generateButton.setMaxWidth(Double.MAX_VALUE);
@@ -252,7 +268,8 @@ public class CreateSpecialTicketView {
                     quantityField,
                     allEventsRadio,
                     eventComboBox,
-                    validUntilPicker
+                    validUntilPicker,
+                    discounts
             );
 
             if (generated) {
@@ -273,6 +290,7 @@ public class CreateSpecialTicketView {
                 createField("Applies To", appliesBox),
                 createField("Event", eventComboBox),
                 createField("Valid Until (Optional)", validUntilPicker),
+                createField("Discounts", new VBox(8, discountsButton, selectedDiscountsLabel)),
                 generateButton
         );
         leftCard.getStyleClass().add("event-card");
@@ -317,7 +335,8 @@ public class CreateSpecialTicketView {
                                    TextField quantityField,
                                    RadioButton allEventsRadio,
                                    ComboBox<String> eventComboBox,
-                                   DatePicker validUntilPicker) {
+                                   DatePicker validUntilPicker,
+                                   List<String> discounts) {
         String ticketName = ticketNameField.getText().trim();
         String description = descriptionArea.getText().trim();
         String benefit = benefitField.getText().trim();
@@ -367,8 +386,9 @@ public class CreateSpecialTicketView {
         if (ticketDescription.isBlank()) {
             ticketDescription = "Special ticket";
         }
+        ticketDescription = mergeNotes(ticketDescription, buildDiscountText(discounts));
 
-        String eventNotes = buildEventNotes(description, validUntilPicker.getValue());
+        String eventNotes = buildEventNotes(description, validUntilPicker.getValue(), discounts);
 
         String eventTitle = validForAllEvents ? null : selectedEvent.getTitle();
         String eventStartDateTime = validForAllEvents ? "" : selectedEvent.getStartDateTime();
@@ -397,6 +417,53 @@ public class CreateSpecialTicketView {
         return true;
     }
 
+    // (Samu) Discounts stay in a small separate dialog so the main ticket form stays clean.
+    private void showDiscountDialog(List<String> discounts, Label selectedDiscountsLabel, Runnable refreshPreview) {
+        CheckBox beerDiscount = new CheckBox("Beer discount");
+        CheckBox foodDiscount = new CheckBox("Food discount");
+        CheckBox merchDiscount = new CheckBox("Merchandise discount");
+
+        beerDiscount.setSelected(discounts.contains("Beer discount"));
+        foodDiscount.setSelected(discounts.contains("Food discount"));
+        merchDiscount.setSelected(discounts.contains("Merchandise discount"));
+
+        TextField customDiscountField = new TextField();
+        customDiscountField.setPromptText("Other discount");
+        customDiscountField.getStyleClass().add("input-field");
+
+        VBox dialogContent = new VBox(10, beerDiscount, foodDiscount, merchDiscount, customDiscountField);
+        dialogContent.setPadding(new Insets(10));
+
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Discounts");
+        alert.setHeaderText(null);
+        alert.getDialogPane().setContent(dialogContent);
+
+        Optional<ButtonType> answer = alert.showAndWait();
+        if (answer.isEmpty() || answer.get() != ButtonType.OK) {
+            return;
+        }
+
+        discounts.clear();
+        addDiscountIfSelected(discounts, beerDiscount);
+        addDiscountIfSelected(discounts, foodDiscount);
+        addDiscountIfSelected(discounts, merchDiscount);
+
+        String customDiscount = customDiscountField.getText().trim();
+        if (!customDiscount.isBlank()) {
+            discounts.add(customDiscount);
+        }
+
+        selectedDiscountsLabel.setText(discounts.isEmpty() ? "No discounts selected" : String.join(", ", discounts));
+        refreshPreview.run();
+    }
+
+    private void addDiscountIfSelected(List<String> discounts, CheckBox checkBox) {
+        if (checkBox.isSelected()) {
+            discounts.add(checkBox.getText());
+        }
+    }
+
     private void populateExistingSpecialTickets(VBox listBox,
                                                 Runnable refreshPreview,
                                                 Runnable refreshExistingTickets) {
@@ -419,14 +486,18 @@ public class CreateSpecialTicketView {
             Ticket representative = group.get(0);
 
             int total = group.size();
+            int sold = 0;
             int used = 0;
             int remaining = 0;
 
             for (Ticket ticket : group) {
+                if (ticket.hasCustomer()) {
+                    sold++;
+                }
                 if (ticket.isUsed()) {
                     used++;
                 }
-                if (ticket.isActive() && !ticket.isUsed()) {
+                if (ticket.isActive() && !ticket.isUsed() && !ticket.hasCustomer()) {
                     remaining++;
                 }
             }
@@ -446,6 +517,7 @@ public class CreateSpecialTicketView {
 
             Label statsLabel = new Label(
                     "Generated: " + total +
+                            "   Sold: " + sold +
                             "   Used: " + used +
                             "   Remaining: " + remaining +
                             "   Price: " + representative.getPrice()
@@ -617,7 +689,7 @@ public class CreateSpecialTicketView {
         return region;
     }
 
-    private String buildEventNotes(String description, LocalDate validUntil) {
+    private String buildEventNotes(String description, LocalDate validUntil, List<String> discounts) {
         StringBuilder builder = new StringBuilder();
 
         if (description != null && !description.isBlank()) {
@@ -631,7 +703,23 @@ public class CreateSpecialTicketView {
             builder.append("Valid until: ").append(validUntil);
         }
 
+        String discountText = buildDiscountText(discounts);
+        if (!discountText.isBlank()) {
+            if (!builder.isEmpty()) {
+                builder.append(" ");
+            }
+            builder.append(discountText);
+        }
+
         return builder.toString();
+    }
+
+    private String buildDiscountText(List<String> discounts) {
+        if (discounts == null || discounts.isEmpty()) {
+            return "";
+        }
+
+        return "Discounts: " + String.join(", ", discounts);
     }
 
     private String mergeNotes(String first, String second) {
@@ -676,5 +764,21 @@ public class CreateSpecialTicketView {
 
     private Image bytesToImage(byte[] bytes) {
         return new Image(new ByteArrayInputStream(bytes));
+    }
+
+    private TextFormatter<String> decimalFormatter() {
+        UnaryOperator<TextFormatter.Change> filter = change -> {
+            String next = change.getControlNewText();
+            return next.matches("\\d{0,6}([\\.,]\\d{0,2})?") ? change : null;
+        };
+        return new TextFormatter<>(filter);
+    }
+
+    private TextFormatter<String> wholeNumberFormatter() {
+        UnaryOperator<TextFormatter.Change> filter = change -> {
+            String next = change.getControlNewText();
+            return next.matches("\\d{0,5}") ? change : null;
+        };
+        return new TextFormatter<>(filter);
     }
 }

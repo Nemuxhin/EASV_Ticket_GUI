@@ -33,6 +33,19 @@ public class TicketDAO {
         return null;
     }
 
+    public Ticket findByTicketId(String ticketId) {
+        if (ticketId == null || ticketId.isBlank()) {
+            return null;
+        }
+
+        for (Ticket ticket : tickets) {
+            if (ticketId.equals(ticket.getTicketId())) {
+                return ticket;
+            }
+        }
+        return null;
+    }
+
     public List<Ticket> findByGroupId(String ticketGroupId) {
         List<Ticket> result = new ArrayList<>();
 

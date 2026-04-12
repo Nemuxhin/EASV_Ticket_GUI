@@ -66,4 +66,8 @@ public class MainView {
     public void showTicketSales(Event selectedEvent) {
         setContent(new TicketSalesView(this, eventController, selectedEvent).getView());
     }
+
+    public void showSoldTickets(String returnRole) {
+        setContent(new SoldTicketsView(this, returnRole).getView());
+    }
 }

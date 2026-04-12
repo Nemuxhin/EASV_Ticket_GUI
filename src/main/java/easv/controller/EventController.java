@@ -13,7 +13,7 @@ public class EventController {
     public void createEvent(Event event) { eventManager.createEvent(event); }
     public void addEvent(Event event) { eventManager.addEvent(event); }
     public boolean updateEvent(Event currentEvent, Event updatedEvent) { return eventManager.updateEvent(currentEvent, updatedEvent); }
-    public void deleteEvent(Event event) { eventManager.deleteEvent(event); }
+    public boolean deleteEvent(Event event) { return eventManager.deleteEvent(event); }
     public void assignCoordinator(Event event, String coordinatorName) { eventManager.assignCoordinator(event, coordinatorName); }
     public void setCoordinators(Event event, String[] coordinators) { eventManager.setCoordinators(event, coordinators); }
     public String validateEvent(String title, String date, String time, String venue, String capacity, String price) { return eventManager.validateEvent(title, date, time, venue, capacity, price); }

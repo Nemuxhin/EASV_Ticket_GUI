@@ -90,6 +90,10 @@ public class Ticket {
         return customer;
     }
 
+    public void setCustomer(Customer customer) {
+        this.customer = customer;
+    }
+
     public String getEventTitle() {
         return eventTitle;
     }

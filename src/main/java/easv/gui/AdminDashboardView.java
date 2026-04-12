@@ -3,7 +3,9 @@ package easv.gui;
 import easv.be.Event;
 import easv.be.User;
 import easv.controller.EventController;
+import easv.controller.TicketController;
 import easv.controller.UserController;
+import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
@@ -11,6 +13,8 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.ScrollPane;
@@ -28,12 +32,18 @@ import javafx.stage.StageStyle;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 
 public class AdminDashboardView {
+    private static final String ALL_COORDINATORS = "All Coordinators";
 
     private final MainView mainView;
     private final EventController eventController;
+    private final TicketController ticketController;
     private final UserController userController;
     private final String activeTab;
 
@@ -41,6 +51,7 @@ public class AdminDashboardView {
                               UserController userController, String activeTab) {
         this.mainView = mainView;
         this.eventController = eventController;
+        this.ticketController = new TicketController();
         this.userController = userController;
         this.activeTab = activeTab;
     }
@@ -83,6 +94,12 @@ public class AdminDashboardView {
                 e -> mainView.showAdminDashboard("Events")
         );
 
+        Button soldTicketsBtn = createMenuBtn(
+                "Sold Tickets",
+                false,
+                e -> mainView.showSoldTickets("Admin")
+        );
+
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
 
@@ -91,7 +108,7 @@ public class AdminDashboardView {
         logoutBtn.setMaxWidth(Double.MAX_VALUE);
         logoutBtn.setOnAction(e -> mainView.showPortalSelection());
 
-        sidebar.getChildren().addAll(logo, coordinatorsBtn, eventsBtn, spacer, logoutBtn);
+        sidebar.getChildren().addAll(logo, coordinatorsBtn, eventsBtn, soldTicketsBtn, spacer, logoutBtn);
         return sidebar;
     }
 
@@ -226,15 +243,80 @@ public class AdminDashboardView {
         searchBar.getStyleClass().add("search-bar");
         searchBar.setMaxWidth(400);
 
+        ComboBox<String> coordinatorFilter = createCoordinatorFilterBox();
+
+        HBox toolbar = new HBox(12, searchBar, coordinatorFilter);
+        toolbar.setAlignment(Pos.CENTER_LEFT);
+
         FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
         grid.setPrefWrapLength(1000);
 
+        Runnable refreshGrid = () -> populateEventGrid(grid, searchBar.getText(), coordinatorFilter.getValue());
+        searchBar.textProperty().addListener((obs, oldValue, newValue) -> refreshGrid.run());
+        coordinatorFilter.valueProperty().addListener((obs, oldValue, newValue) -> refreshGrid.run());
+        refreshGrid.run();
+
+        content.getChildren().addAll(title, toolbar, grid);
+        return content;
+    }
+
+    // (Samu) Admin can filter the event list by assigned coordinator.
+    private void populateEventGrid(FlowPane grid, String searchText, String coordinatorName) {
+        grid.getChildren().clear();
+
         for (Event event : eventController.getEvents()) {
-            grid.getChildren().add(createEventCard(event));
+            if (eventMatchesFilters(event, searchText, coordinatorName)) {
+                grid.getChildren().add(createEventCard(event));
+            }
+        }
+    }
+
+    private ComboBox<String> createCoordinatorFilterBox() {
+        ComboBox<String> filterBox = new ComboBox<>();
+        filterBox.setItems(FXCollections.observableArrayList(getCoordinatorFilterValues()));
+        filterBox.setValue(ALL_COORDINATORS);
+        filterBox.setPrefWidth(220);
+        filterBox.getStyleClass().add("input-field");
+        return filterBox;
+    }
+
+    private List<String> getCoordinatorFilterValues() {
+        List<String> values = new ArrayList<>();
+        values.add(ALL_COORDINATORS);
+
+        for (User user : userController.getUsersByRole("Event Coordinator")) {
+            values.add(user.getName());
         }
 
-        content.getChildren().addAll(title, searchBar, grid);
-        return content;
+        return values;
+    }
+
+    private boolean eventMatchesFilters(Event event, String searchText, String coordinatorName) {
+        return matchesSearch(event, searchText) && matchesCoordinator(event, coordinatorName);
+    }
+
+    private boolean matchesSearch(Event event, String searchText) {
+        if (searchText == null || searchText.isBlank()) {
+            return true;
+        }
+
+        String value = searchText.trim().toLowerCase(Locale.ENGLISH);
+        return event.getTitle().toLowerCase(Locale.ENGLISH).contains(value)
+                || event.getLocation().toLowerCase(Locale.ENGLISH).contains(value);
+    }
+
+    private boolean matchesCoordinator(Event event, String coordinatorName) {
+        if (coordinatorName == null || coordinatorName.isBlank() || ALL_COORDINATORS.equals(coordinatorName)) {
+            return true;
+        }
+
+        for (String coordinator : event.getCoordinators()) {
+            if (coordinatorName.equals(coordinator)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private VBox createEventCard(Event event) {
@@ -256,11 +338,11 @@ public class AdminDashboardView {
 
         VBox scheduleBox = new VBox(6);
         Label dateLbl = new Label("\uD83D\uDD52 " + event.getStartDateTime());
-        dateLbl.getStyleClass().add("card-text");
+        dateLbl.getStyleClass().add("date-text");
         scheduleBox.getChildren().add(dateLbl);
         if (event.hasEndDateTime()) {
             Label endLbl = new Label("Ends: " + event.getEndDateTime());
-            endLbl.getStyleClass().add("card-text");
+            endLbl.getStyleClass().add("date-text");
             scheduleBox.getChildren().add(endLbl);
         }
 
@@ -284,6 +366,8 @@ public class AdminDashboardView {
 
         Label priceLbl = new Label(event.getPrice());
         priceLbl.getStyleClass().add("price-text");
+
+        VBox ticketTypesBox = createTicketTypesBox(event);
 
         Label assignedHead = new Label("Assigned Coordinators");
         assignedHead.getStyleClass().add("notes-head");
@@ -309,10 +393,7 @@ public class AdminDashboardView {
         Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
         deleteBtn.getStyleClass().add("danger-btn");
         deleteBtn.setMaxWidth(Double.MAX_VALUE);
-        deleteBtn.setOnAction(e -> {
-            eventController.deleteEvent(event);
-            mainView.showAdminDashboard("Events");
-        });
+        deleteBtn.setOnAction(e -> confirmDeleteEvent(event));
 
         card.getChildren().addAll(
                 top,
@@ -322,6 +403,7 @@ public class AdminDashboardView {
                 notesLbl,
                 new Separator(),
                 priceLbl,
+                ticketTypesBox,
                 assignedHead,
                 pillBox,
                 assignBtn,
@@ -329,6 +411,51 @@ public class AdminDashboardView {
         );
 
         return card;
+    }
+
+    // (Samu) Admin sees the ticket types before deciding what to do with the event.
+    private VBox createTicketTypesBox(Event event) {
+        VBox box = new VBox(8);
+
+        Label heading = new Label("Ticket Types");
+        heading.getStyleClass().add("notes-head");
+
+        FlowPane pills = new FlowPane(6, 6);
+        LinkedHashMap<String, String> ticketTypes = ticketController.getTicketTypePricesForEvent(event);
+
+        for (Map.Entry<String, String> entry : ticketTypes.entrySet()) {
+            Label pill = new Label(entry.getKey() + " - " + entry.getValue());
+            pill.getStyleClass().add("ticket-option-pill");
+            pills.getChildren().add(pill);
+        }
+
+        box.getChildren().addAll(heading, pills);
+        return box;
+    }
+
+    // (Samu) Admin gets a confirmation dialog and an error if the delete does not work.
+    private void confirmDeleteEvent(Event event) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Delete Event");
+        alert.setHeaderText(null);
+        alert.setContentText("Delete \"" + event.getTitle() + "\"?");
+
+        Optional<ButtonType> answer = alert.showAndWait();
+        if (answer.isEmpty() || answer.get() != ButtonType.OK) {
+            return;
+        }
+
+        try {
+            boolean deleted = eventController.deleteEvent(event);
+            if (!deleted) {
+                AlertHelper.showError("Delete Failed", "The selected event could not be deleted.");
+                return;
+            }
+
+            mainView.showAdminDashboard("Events");
+        } catch (RuntimeException ex) {
+            AlertHelper.showError("Delete Failed", ex.getMessage());
+        }
     }
 
     private Button createMenuBtn(String text, boolean isActive,
