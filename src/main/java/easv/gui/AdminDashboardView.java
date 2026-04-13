@@ -3,7 +3,6 @@ package easv.gui;
 import easv.be.Event;
 import easv.be.User;
 import easv.controller.EventController;
-import easv.controller.TicketController;
 import easv.controller.UserController;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
@@ -30,12 +29,12 @@ import javafx.stage.StageStyle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 public class AdminDashboardView {
 
     private final MainView mainView;
     private final EventController eventController;
-    private final TicketController ticketController;
     private final UserController userController;
     private final String activeTab;
 
@@ -43,7 +42,6 @@ public class AdminDashboardView {
                               UserController userController, String activeTab) {
         this.mainView = mainView;
         this.eventController = eventController;
-        this.ticketController = new TicketController();
         this.userController = userController;
         this.activeTab = activeTab;
     }
@@ -53,12 +51,9 @@ public class AdminDashboardView {
         layout.getStyleClass().add("main-bg");
         layout.setLeft(createSidebar());
 
-        VBox content = switch (activeTab) {
-            case "Events" -> createEventsContent();
-            case "Manage Access" -> createManageAccessContent();
-            case "Create Coordinator" -> createCoordinatorCreateContent();
-            default -> createCoordinatorsContent();
-        };
+        VBox content = "Events".equals(activeTab)
+                ? createEventsContent()
+                : createCoordinatorsContent();
 
         ScrollPane scrollPane = new ScrollPane(content);
         scrollPane.setFitToWidth(true);
@@ -83,22 +78,10 @@ public class AdminDashboardView {
                 e -> mainView.showAdminDashboard("Coordinators")
         );
 
-        Button createCoordinatorBtn = createMenuBtn(
-                "+ Create Coordinator",
-                "Create Coordinator".equals(activeTab),
-                e -> mainView.showAdminDashboard("Create Coordinator")
-        );
-
         Button eventsBtn = createMenuBtn(
                 "\uD83D\uDCC5 Events",
                 "Events".equals(activeTab),
                 e -> mainView.showAdminDashboard("Events")
-        );
-
-        Button manageAccessBtn = createMenuBtn(
-                "\uD83D\uDD10 Manage Access",
-                "Manage Access".equals(activeTab),
-                e -> mainView.showAdminDashboard("Manage Access")
         );
 
         Region spacer = new Region();
@@ -109,7 +92,7 @@ public class AdminDashboardView {
         logoutBtn.setMaxWidth(Double.MAX_VALUE);
         logoutBtn.setOnAction(e -> mainView.showPortalSelection());
 
-        sidebar.getChildren().addAll(logo, coordinatorsBtn, createCoordinatorBtn, manageAccessBtn, eventsBtn, spacer, logoutBtn);
+        sidebar.getChildren().addAll(logo, coordinatorsBtn, eventsBtn, spacer, logoutBtn);
         return sidebar;
     }
 
@@ -131,141 +114,75 @@ public class AdminDashboardView {
         searchBar.getStyleClass().add("search-bar");
         searchBar.setMaxWidth(400);
 
+        HBox topBar = new HBox(16);
+        topBar.setAlignment(Pos.CENTER_LEFT);
+
+        Region topSpacer = new Region();
+        HBox.setHgrow(topSpacer, Priority.ALWAYS);
+
+        Button createBtn = new Button("+ Create Coordinator");
+        createBtn.getStyleClass().add("primary-btn");
+        createBtn.setOnAction(e -> showCoordinatorCreateForm(content));
+
+        topBar.getChildren().addAll(title, topSpacer, createBtn);
+
         FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
         grid.setPrefWrapLength(1000);
 
         List<User> coordinators = userController.getUsersByRole("Event Coordinator");
+        renderCoordinatorCards(grid, coordinators, content);
+
+        searchBar.textProperty().addListener((obs, oldValue, newValue) -> {
+            List<User> filtered = filterCoordinators(coordinators, newValue);
+            renderCoordinatorCards(grid, filtered, content);
+        });
+
+        content.getChildren().addAll(topBar, searchBar, grid);
+    }
+
+    private void renderCoordinatorCards(FlowPane grid, List<User> coordinators, VBox content) {
+        grid.getChildren().clear();
 
         for (User user : coordinators) {
-            VBox card = new VBox(10);
-            card.getStyleClass().add("event-card");
-            card.setMinHeight(240);
-
-            Label nameLbl = new Label("\uD83D\uDC64 " + user.getName());
-            nameLbl.getStyleClass().add("card-title");
-
-            Label emailLbl = new Label("\u2709 " + user.getEmail());
-            emailLbl.getStyleClass().add("card-text");
-
-            Label usernameLbl = new Label("Username: " + user.getUsername());
-            usernameLbl.getStyleClass().add("card-text");
-
-            Button editBtn = new Button("Edit");
-            editBtn.getStyleClass().add("secondary-btn");
-            editBtn.setMaxWidth(Double.MAX_VALUE);
-            editBtn.setOnAction(e -> showCoordinatorEditForm(content, user));
-
-            Button deleteBtn = new Button("\uD83D\uDDD1 Delete Coordinator");
-            deleteBtn.getStyleClass().add("danger-btn");
-            deleteBtn.setMaxWidth(Double.MAX_VALUE);
-            deleteBtn.setOnAction(e -> {
-                boolean confirmed = AlertHelper.showConfirmation(
-                        "Delete Coordinator",
-                        "Are you sure you want to delete the coordinator?"
-                );
-                if (!confirmed) {
-                    return;
-                }
-
-                userController.deleteUser(user);
-                showCoordinatorList(content);
-            });
-
-            Region buttonSpacer = new Region();
-            VBox.setVgrow(buttonSpacer, Priority.ALWAYS);
-
-            card.getChildren().addAll(
-                    nameLbl,
-                    emailLbl,
-                    usernameLbl,
-                    buttonSpacer,
-                    new Separator(),
-                    editBtn,
-                    deleteBtn
-            );
-            grid.getChildren().add(card);
+            grid.getChildren().add(createCoordinatorCard(user, content));
         }
-
-        content.getChildren().addAll(title, searchBar, grid);
     }
 
-    private VBox createCoordinatorCreateContent() {
-        VBox content = new VBox(20);
-        content.setPadding(new Insets(30, 50, 30, 50));
-        showCoordinatorCreateForm(content);
-        return content;
-    }
+    private VBox createCoordinatorCard(User user, VBox content) {
+        VBox card = new VBox(10);
+        card.getStyleClass().add("event-card");
 
-    private VBox createManageAccessContent() {
-        VBox content = new VBox(18);
-        content.setPadding(new Insets(30, 50, 30, 50));
+        Label nameLbl = new Label("\uD83D\uDC64 " + user.getName());
+        nameLbl.getStyleClass().add("card-title");
 
-        Label title = new Label("Manage Coordinator Access");
-        title.getStyleClass().add("page-title");
+        Label emailLbl = new Label("\u2709 " + user.getEmail());
+        emailLbl.getStyleClass().add("card-text");
 
-        VBox list = new VBox(16);
-        List<User> coordinators = userController.getUsersByRole("Event Coordinator");
+        Label usernameLbl = new Label("Username: " + user.getUsername());
+        usernameLbl.getStyleClass().add("card-text");
 
-        for (Event event : eventController.getEvents()) {
-            list.getChildren().add(createManageAccessCard(event, coordinators));
-        }
+        Button editBtn = new Button("Edit");
+        editBtn.getStyleClass().add("secondary-btn");
+        editBtn.setMaxWidth(Double.MAX_VALUE);
+        editBtn.setOnAction(e -> showCoordinatorEditForm(content, user));
 
-        content.getChildren().addAll(title, list);
-        return content;
-    }
+        Button deleteBtn = new Button("\uD83D\uDDD1 Delete");
+        deleteBtn.getStyleClass().add("danger-btn");
+        deleteBtn.setMaxWidth(Double.MAX_VALUE);
+        deleteBtn.setOnAction(e -> {
+            userController.deleteUser(user);
+            showCoordinatorList(content);
+        });
 
-    private VBox createManageAccessCard(Event event, List<User> coordinators) {
-        VBox card = new VBox(12);
-        card.getStyleClass().addAll("event-card", "event-list-card");
+        card.getChildren().addAll(
+                nameLbl,
+                emailLbl,
+                usernameLbl,
+                new Separator(),
+                editBtn,
+                deleteBtn
+        );
 
-        Label title = new Label(event.getTitle());
-        title.getStyleClass().add("card-title");
-
-        String startDateTime = event.getStartDateTime() == null ? "" : event.getStartDateTime();
-        Label date = new Label(startDateTime.replace(" at ", ", "));
-        date.getStyleClass().add("card-text");
-
-        Label assigned = new Label("Assigned Coordinators:");
-        assigned.getStyleClass().add("notes-head");
-
-        FlowPane pills = new FlowPane(8, 8);
-        List<String> selected = new ArrayList<>();
-        if (event.getCoordinators() != null) {
-            selected.addAll(Arrays.asList(event.getCoordinators()));
-        }
-
-        for (User coordinator : coordinators) {
-            String name = coordinator.getName();
-            Button pill = new Button(name);
-            pill.getStyleClass().add("assign-pill");
-
-            if (selected.contains(name)) {
-                pill.getStyleClass().add("assign-pill-selected");
-            }
-
-            pill.setOnAction(e -> {
-                if (selected.contains(name)) {
-                    selected.remove(name);
-                    pill.getStyleClass().remove("assign-pill-selected");
-                } else {
-                    selected.add(name);
-                    if (!pill.getStyleClass().contains("assign-pill-selected")) {
-                        pill.getStyleClass().add("assign-pill-selected");
-                    }
-                }
-
-                eventController.setCoordinators(event, selected.toArray(new String[0]));
-            });
-
-            pills.getChildren().add(pill);
-        }
-
-        if (coordinators.isEmpty()) {
-            Label none = new Label("No coordinators available yet");
-            none.getStyleClass().add("card-text");
-            pills.getChildren().add(none);
-        }
-        card.getChildren().addAll(title, date, assigned, pills);
         return card;
     }
 
@@ -328,30 +245,84 @@ public class AdminDashboardView {
         FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
         grid.setPrefWrapLength(1000);
 
-        for (Event event : eventController.getEvents()) {
-            grid.getChildren().add(createEventCard(event));
-        }
+        List<Event> events = eventController.getEvents();
+        renderEventCards(grid, events);
+
+        searchBar.textProperty().addListener((obs, oldValue, newValue) -> {
+            List<Event> filtered = filterEvents(events, newValue);
+            renderEventCards(grid, filtered);
+        });
 
         content.getChildren().addAll(title, searchBar, grid);
         return content;
     }
 
-    private VBox createEventCard(Event event) {
-        return createEventCard(event, true);
+    private void renderEventCards(FlowPane grid, List<Event> events) {
+        grid.getChildren().clear();
+
+        for (Event event : events) {
+            grid.getChildren().add(createEventCard(event));
+        }
     }
 
-    private VBox createEventCard(Event event, boolean allowDelete) {
+    private List<User> filterCoordinators(List<User> users, String query) {
+        if (query == null || query.isBlank()) {
+            return users;
+        }
+
+        String normalizedQuery = query.trim().toLowerCase(Locale.ENGLISH);
+        List<User> filtered = new ArrayList<>();
+
+        for (User user : users) {
+            if (containsIgnoreCase(user.getName(), normalizedQuery) ||
+                    containsIgnoreCase(user.getEmail(), normalizedQuery) ||
+                    containsIgnoreCase(user.getUsername(), normalizedQuery)) {
+                filtered.add(user);
+            }
+        }
+
+        return filtered;
+    }
+
+    private List<Event> filterEvents(List<Event> events, String query) {
+        if (query == null || query.isBlank()) {
+            return events;
+        }
+
+        String normalizedQuery = query.trim().toLowerCase(Locale.ENGLISH);
+        List<Event> filtered = new ArrayList<>();
+
+        for (Event event : events) {
+            if (containsIgnoreCase(event.getTitle(), normalizedQuery) ||
+                    containsIgnoreCase(event.getLocation(), normalizedQuery) ||
+                    containsIgnoreCase(event.getNotes(), normalizedQuery) ||
+                    containsIgnoreCase(event.getStartDateTime(), normalizedQuery) ||
+                    containsIgnoreCase(event.getEndDateTime(), normalizedQuery) ||
+                    containsIgnoreCase(event.getLocationGuidance(), normalizedQuery) ||
+                    containsIgnoreCase(event.getStatus(), normalizedQuery)) {
+                filtered.add(event);
+            }
+        }
+
+        return filtered;
+    }
+
+    private boolean containsIgnoreCase(String value, String query) {
+        return value != null && value.toLowerCase(Locale.ENGLISH).contains(query);
+    }
+
+    private VBox createEventCard(Event event) {
         VBox card = new VBox(10);
         card.getStyleClass().add("event-card");
-        card.setMinHeight(340);
 
         HBox top = new HBox();
         Label titleLbl = new Label(event.getTitle());
         titleLbl.getStyleClass().add("card-title");
 
-        String status = ticketController.getEventStatus(event);
-        Label statusLbl = new Label(status);
-        statusLbl.getStyleClass().add(statusStyleClass(status));
+        Label statusLbl = new Label(event.getStatus());
+        statusLbl.getStyleClass().add(
+                "Available".equals(event.getStatus()) ? "status-avail" : "status-fast"
+        );
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -388,8 +359,34 @@ public class AdminDashboardView {
         Label priceLbl = new Label(event.getPrice());
         priceLbl.getStyleClass().add("price-text");
 
-        Region buttonSpacer = new Region();
-        VBox.setVgrow(buttonSpacer, Priority.ALWAYS);
+        Label assignedHead = new Label("Assigned Coordinators");
+        assignedHead.getStyleClass().add("notes-head");
+
+        FlowPane pillBox = new FlowPane(5, 5);
+        if (event.getCoordinators() == null || event.getCoordinators().length == 0) {
+            Label emptyLbl = new Label("No coordinators assigned yet");
+            emptyLbl.getStyleClass().add("card-text");
+            pillBox.getChildren().add(emptyLbl);
+        } else {
+            for (String coordinator : event.getCoordinators()) {
+                Label pill = new Label(coordinator);
+                pill.getStyleClass().add("coord-pill");
+                pillBox.getChildren().add(pill);
+            }
+        }
+
+        Button assignBtn = new Button("\uD83D\uDC65 Assign Coordinators");
+        assignBtn.getStyleClass().add("primary-btn");
+        assignBtn.setMaxWidth(Double.MAX_VALUE);
+        assignBtn.setOnAction(e -> showAssignAccessDialog(event, assignBtn));
+
+        Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
+        deleteBtn.getStyleClass().add("danger-btn");
+        deleteBtn.setMaxWidth(Double.MAX_VALUE);
+        deleteBtn.setOnAction(e -> {
+            eventController.deleteEvent(event);
+            mainView.showAdminDashboard("Events");
+        });
 
         card.getChildren().addAll(
                 top,
@@ -397,30 +394,13 @@ public class AdminDashboardView {
                 locationBox,
                 notesHead,
                 notesLbl,
-                buttonSpacer,
                 new Separator(),
-                priceLbl
+                priceLbl,
+                assignedHead,
+                pillBox,
+                assignBtn,
+                deleteBtn
         );
-
-        if (allowDelete) {
-            Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
-            deleteBtn.getStyleClass().add("danger-btn");
-            deleteBtn.setMaxWidth(Double.MAX_VALUE);
-            deleteBtn.setOnAction(e -> {
-                boolean confirmed = AlertHelper.showConfirmation(
-                        "Delete Event",
-                        "Are you sure you want to delete the event?"
-                );
-                if (!confirmed) {
-                    return;
-                }
-
-                eventController.deleteEvent(event);
-                mainView.showAdminDashboard("Events");
-            });
-
-            card.getChildren().add(deleteBtn);
-        }
 
         return card;
     }
@@ -489,7 +469,6 @@ public class AdminDashboardView {
             );
 
             userController.createUser(user);
-            AlertHelper.showInfo("Coordinator Created", "The coordinator was created successfully.");
             onDoneOrCancel.run();
         });
 
@@ -550,7 +529,6 @@ public class AdminDashboardView {
             }
 
             userController.updateUser(user, name, email, username, password);
-            AlertHelper.showInfo("Coordinator Updated", "The coordinator changes were saved successfully.");
             onDoneOrCancel.run();
         });
 
@@ -588,7 +566,7 @@ public class AdminDashboardView {
 
         passwordField.textProperty().bindBidirectional(visibleField.textProperty());
 
-        Button toggleBtn = new Button("👁");
+        Button toggleBtn = new Button("Show");
         toggleBtn.getStyleClass().add("password-toggle-inside-btn");
         toggleBtn.setFocusTraversable(false);
 
@@ -605,7 +583,7 @@ public class AdminDashboardView {
             passwordField.setVisible(showing);
             passwordField.setManaged(showing);
 
-            toggleBtn.setText(showing ? "👁" : "🙈");
+            toggleBtn.setText(showing ? "Show" : "Hide");
         });
 
         return fieldBox(labelText, stack);
@@ -646,7 +624,7 @@ public class AdminDashboardView {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Button closeBtn = new Button("✕");
+        Button closeBtn = new Button("X");
         closeBtn.getStyleClass().add("assign-dialog-close");
         closeBtn.setOnAction(e -> popup.close());
 
@@ -746,13 +724,5 @@ public class AdminDashboardView {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
-    }
-
-    private String statusStyleClass(String status) {
-        return switch (status) {
-            case "Sold Out" -> "status-sold";
-            case "Fast Selling" -> "status-fast";
-            default -> "status-avail";
-        };
     }
 }
