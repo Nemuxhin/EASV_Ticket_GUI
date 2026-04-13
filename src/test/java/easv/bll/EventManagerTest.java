@@ -222,6 +222,84 @@ class EventManagerTest {
     }
 
     @Test
+    @DisplayName("validatePurchase rejects blank customer name")
+    void validatePurchase_shouldRejectBlankCustomerName() {
+        String result = eventManager.validatePurchase(
+                "",
+                "alice@example.com",
+                "VIP",
+                1
+        );
+
+        assertEquals("Please enter the customer's full name.", result);
+    }
+
+    @Test
+    @DisplayName("validatePurchase rejects blank email")
+    void validatePurchase_shouldRejectBlankEmail() {
+        String result = eventManager.validatePurchase(
+                "Alice Jensen",
+                "",
+                "VIP",
+                1
+        );
+
+        assertEquals("Please enter the customer's email address.", result);
+    }
+
+    @Test
+    @DisplayName("validatePurchase rejects invalid email")
+    void validatePurchase_shouldRejectInvalidEmail() {
+        String result = eventManager.validatePurchase(
+                "Alice Jensen",
+                "aliceexample.com",
+                "VIP",
+                1
+        );
+
+        assertEquals("Please enter a valid email address.", result);
+    }
+
+    @Test
+    @DisplayName("validatePurchase rejects blank ticket type")
+    void validatePurchase_shouldRejectBlankTicketType() {
+        String result = eventManager.validatePurchase(
+                "Alice Jensen",
+                "alice@example.com",
+                "",
+                1
+        );
+
+        assertEquals("Please select a ticket type.", result);
+    }
+
+    @Test
+    @DisplayName("validatePurchase rejects quantity below one")
+    void validatePurchase_shouldRejectQuantityBelowOne() {
+        String result = eventManager.validatePurchase(
+                "Alice Jensen",
+                "alice@example.com",
+                "VIP",
+                0
+        );
+
+        assertEquals("Quantity must be at least 1.", result);
+    }
+
+    @Test
+    @DisplayName("validatePurchase accepts valid purchase input")
+    void validatePurchase_shouldAcceptValidInput() {
+        String result = eventManager.validatePurchase(
+                "Alice Jensen",
+                "alice@example.com",
+                "VIP",
+                2
+        );
+
+        assertNull(result);
+    }
+
+    @Test
     @DisplayName("isValidEmail accepts valid email")
     void isValidEmail_shouldAcceptValidEmail() {
         assertTrue(eventManager.isValidEmail("alice@example.com"));
@@ -237,6 +315,12 @@ class EventManagerTest {
     @DisplayName("isValidEmail rejects blank email")
     void isValidEmail_shouldRejectBlankEmail() {
         assertFalse(eventManager.isValidEmail("   "));
+    }
+
+    @Test
+    @DisplayName("isValidEmail rejects null email")
+    void isValidEmail_shouldRejectNullEmail() {
+        assertFalse(eventManager.isValidEmail(null));
     }
 
     @Test
@@ -339,5 +423,22 @@ class EventManagerTest {
         );
 
         assertEquals("VIP", purchase.getTicketType());
+    }
+
+    @Test
+    @DisplayName("createTicketPurchase trims customer name and email")
+    void createTicketPurchase_shouldTrimCustomerFields() {
+        Event event = createEventWithPrice("100 DKK");
+
+        TicketPurchase purchase = eventManager.createTicketPurchase(
+                event,
+                "  Alice Jensen  ",
+                "  alice@example.com  ",
+                "Standard",
+                1
+        );
+
+        assertEquals("Alice Jensen", purchase.getCustomerName());
+        assertEquals("alice@example.com", purchase.getCustomerEmail());
     }
 }
