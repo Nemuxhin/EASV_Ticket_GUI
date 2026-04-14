@@ -108,6 +108,22 @@ public class TicketController {
         return ticketManager.getTicketTypePricesForEvent(event);
     }
 
+    public LinkedHashMap<String, String> getConfiguredTicketTypesForEvent(Event event) {
+        return ticketManager.getConfiguredTicketTypesForEvent(event);
+    }
+
+    public void setConfiguredTicketTypesForEvent(Event event, LinkedHashMap<String, String> ticketTypes) {
+        ticketManager.setConfiguredTicketTypesForEvent(event, ticketTypes);
+    }
+
+    public void moveConfiguredTicketTypes(Event oldEvent, Event updatedEvent) {
+        ticketManager.moveConfiguredTicketTypes(oldEvent, updatedEvent);
+    }
+
+    public void removeConfiguredTicketTypes(Event event) {
+        ticketManager.removeConfiguredTicketTypes(event);
+    }
+
     public List<Ticket> getAllTickets() {
         return ticketManager.getAllTickets();
     }
@@ -134,5 +150,9 @@ public class TicketController {
 
     public boolean markTicketAsUsed(String secureToken) {
         return ticketManager.markTicketAsUsed(secureToken);
+    }
+
+    public boolean setTicketUsedState(String ticketId, boolean used) {
+        return ticketManager.setTicketUsedState(ticketId, used);
     }
 }

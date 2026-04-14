@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class TicketManager {
 
@@ -214,13 +213,7 @@ public class TicketManager {
             throw new IllegalArgumentException("Event cannot be null.");
         }
 
-        LinkedHashMap<String, String> ticketTypePrices = new LinkedHashMap<>();
-
-        double basePrice = parsePriceValue(event.getPrice());
-
-        ticketTypePrices.put("Standard", formatPrice(basePrice));
-        ticketTypePrices.put("VIP", formatPrice(basePrice * 1.5));
-        ticketTypePrices.put("Student", formatPrice(basePrice * 0.7));
+        LinkedHashMap<String, String> ticketTypePrices = getBaseTicketTypes(event);
 
         LinkedHashMap<String, List<Ticket>> groupedSpecialTickets = groupSpecialTicketsByBatch();
 
@@ -251,6 +244,22 @@ public class TicketManager {
         }
 
         return ticketTypePrices;
+    }
+
+    public LinkedHashMap<String, String> getConfiguredTicketTypesForEvent(Event event) {
+        return ticketDAO.getTicketTypesForEvent(event);
+    }
+
+    public void setConfiguredTicketTypesForEvent(Event event, LinkedHashMap<String, String> ticketTypes) {
+        ticketDAO.setTicketTypesForEvent(event, ticketTypes);
+    }
+
+    public void moveConfiguredTicketTypes(Event oldEvent, Event updatedEvent) {
+        ticketDAO.moveTicketTypesToUpdatedEvent(oldEvent, updatedEvent);
+    }
+
+    public void removeConfiguredTicketTypes(Event event) {
+        ticketDAO.removeTicketTypesForEvent(event);
     }
 
     public Ticket findByToken(String secureToken) {
@@ -289,6 +298,27 @@ public class TicketManager {
 
         ticket.setUsed(true);
         return ticketDAO.updateTicket(ticket);
+    }
+
+    public boolean setTicketUsedState(String ticketId, boolean used) {
+        if (ticketId == null || ticketId.isBlank()) {
+            return false;
+        }
+
+        for (Ticket ticket : ticketDAO.getAllTickets()) {
+            if (!ticketId.equals(ticket.getTicketId())) {
+                continue;
+            }
+
+            if (!ticket.isActive()) {
+                return false;
+            }
+
+            ticket.setUsed(used);
+            return ticketDAO.updateTicket(ticket);
+        }
+
+        return false;
     }
 
     private Ticket buildAndSaveTicket(String ticketId,
@@ -349,6 +379,21 @@ public class TicketManager {
         }
 
         return grouped;
+    }
+
+    private LinkedHashMap<String, String> getBaseTicketTypes(Event event) {
+        LinkedHashMap<String, String> configured = ticketDAO.getTicketTypesForEvent(event);
+        if (!configured.isEmpty()) {
+            return configured;
+        }
+
+        LinkedHashMap<String, String> fallback = new LinkedHashMap<>();
+        double basePrice = parsePriceValue(event.getPrice());
+
+        fallback.put("Standard", formatPrice(basePrice));
+        fallback.put("VIP", formatPrice(basePrice * 1.5));
+        fallback.put("Student", formatPrice(basePrice * 0.7));
+        return fallback;
     }
 
     private int countRemainingTickets(List<Ticket> tickets) {

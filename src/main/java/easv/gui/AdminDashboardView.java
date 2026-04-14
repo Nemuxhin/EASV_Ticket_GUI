@@ -50,9 +50,11 @@ public class AdminDashboardView {
         layout.getStyleClass().add("main-bg");
         layout.setLeft(createSidebar());
 
-        VBox content = "Events".equals(activeTab)
-                ? createEventsContent()
-                : createCoordinatorsContent();
+        VBox content = switch (activeTab) {
+            case "Events" -> createEventsContent();
+            case "Manage Access" -> createManageAccessContent();
+            default -> createCoordinatorsContent();
+        };
 
         ScrollPane scrollPane = new ScrollPane(content);
         scrollPane.setFitToWidth(true);
@@ -83,6 +85,12 @@ public class AdminDashboardView {
                 e -> mainView.showAdminDashboard("Events")
         );
 
+        Button manageAccessBtn = createMenuBtn(
+                "\uD83D\uDD10 Manage Access",
+                "Manage Access".equals(activeTab),
+                e -> mainView.showAdminDashboard("Manage Access")
+        );
+
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
 
@@ -91,8 +99,24 @@ public class AdminDashboardView {
         logoutBtn.setMaxWidth(Double.MAX_VALUE);
         logoutBtn.setOnAction(e -> mainView.showPortalSelection());
 
-        sidebar.getChildren().addAll(logo, coordinatorsBtn, eventsBtn, spacer, logoutBtn);
+        sidebar.getChildren().addAll(logo, coordinatorsBtn, manageAccessBtn, eventsBtn, spacer, logoutBtn);
         return sidebar;
+    }
+
+    private HBox createCoordinatorTabs(String selectedTab) {
+        HBox tabs = new HBox(10);
+        tabs.setAlignment(Pos.CENTER_LEFT);
+
+        Button coordinatorsTab = new Button("Coordinators");
+        coordinatorsTab.getStyleClass().add("Coordinators".equals(selectedTab) ? "tab-btn-active" : "tab-btn");
+        coordinatorsTab.setOnAction(e -> mainView.showAdminDashboard("Coordinators"));
+
+        Button accessTab = new Button("Manage Access");
+        accessTab.getStyleClass().add("Manage Access".equals(selectedTab) ? "tab-btn-active" : "tab-btn");
+        accessTab.setOnAction(e -> mainView.showAdminDashboard("Manage Access"));
+
+        tabs.getChildren().addAll(coordinatorsTab, accessTab);
+        return tabs;
     }
 
     private VBox createCoordinatorsContent() {
@@ -167,7 +191,81 @@ public class AdminDashboardView {
             grid.getChildren().add(card);
         }
 
-        content.getChildren().addAll(topBar, searchBar, grid);
+        content.getChildren().addAll(createCoordinatorTabs("Coordinators"), topBar, searchBar, grid);
+    }
+
+    private VBox createManageAccessContent() {
+        VBox content = new VBox(18);
+        content.setPadding(new Insets(30, 50, 30, 50));
+
+        Label title = new Label("Manage Coordinator Access");
+        title.getStyleClass().add("page-title");
+
+        VBox list = new VBox(16);
+        List<User> coordinators = userController.getUsersByRole("Event Coordinator");
+
+        for (Event event : eventController.getEvents()) {
+            list.getChildren().add(createManageAccessCard(event, coordinators));
+        }
+
+        content.getChildren().addAll(createCoordinatorTabs("Manage Access"), title, list);
+        return content;
+    }
+
+    private VBox createManageAccessCard(Event event, List<User> coordinators) {
+        VBox card = new VBox(12);
+        card.getStyleClass().addAll("event-card", "event-list-card");
+
+        Label title = new Label(event.getTitle());
+        title.getStyleClass().add("card-title");
+
+        String startDateTime = event.getStartDateTime() == null ? "" : event.getStartDateTime();
+        Label date = new Label(startDateTime.replace(" at ", ", "));
+        date.getStyleClass().add("card-text");
+
+        Label assigned = new Label("Assigned Coordinators:");
+        assigned.getStyleClass().add("notes-head");
+
+        FlowPane pills = new FlowPane(8, 8);
+        List<String> selected = new ArrayList<>();
+        if (event.getCoordinators() != null) {
+            selected.addAll(Arrays.asList(event.getCoordinators()));
+        }
+
+        for (User coordinator : coordinators) {
+            String name = coordinator.getName();
+            Button pill = new Button(name);
+            pill.getStyleClass().add("assign-pill");
+
+            if (selected.contains(name)) {
+                pill.getStyleClass().add("assign-pill-selected");
+            }
+
+            pill.setOnAction(e -> {
+                if (selected.contains(name)) {
+                    selected.remove(name);
+                    pill.getStyleClass().remove("assign-pill-selected");
+                } else {
+                    selected.add(name);
+                    if (!pill.getStyleClass().contains("assign-pill-selected")) {
+                        pill.getStyleClass().add("assign-pill-selected");
+                    }
+                }
+
+                eventController.setCoordinators(event, selected.toArray(new String[0]));
+            });
+
+            pills.getChildren().add(pill);
+        }
+
+        if (coordinators.isEmpty()) {
+            Label none = new Label("No coordinators available yet");
+            none.getStyleClass().add("card-text");
+            pills.getChildren().add(none);
+        }
+
+        card.getChildren().addAll(title, date, assigned, pills);
+        return card;
     }
 
     private void showCoordinatorCreateForm(VBox content) {
@@ -285,27 +383,6 @@ public class AdminDashboardView {
         Label priceLbl = new Label(event.getPrice());
         priceLbl.getStyleClass().add("price-text");
 
-        Label assignedHead = new Label("Assigned Coordinators");
-        assignedHead.getStyleClass().add("notes-head");
-
-        FlowPane pillBox = new FlowPane(5, 5);
-        if (event.getCoordinators() == null || event.getCoordinators().length == 0) {
-            Label emptyLbl = new Label("No coordinators assigned yet");
-            emptyLbl.getStyleClass().add("card-text");
-            pillBox.getChildren().add(emptyLbl);
-        } else {
-            for (String coordinator : event.getCoordinators()) {
-                Label pill = new Label(coordinator);
-                pill.getStyleClass().add("coord-pill");
-                pillBox.getChildren().add(pill);
-            }
-        }
-
-        Button assignBtn = new Button("\uD83D\uDC65 Assign Coordinators");
-        assignBtn.getStyleClass().add("primary-btn");
-        assignBtn.setMaxWidth(Double.MAX_VALUE);
-        assignBtn.setOnAction(e -> showAssignAccessDialog(event, assignBtn));
-
         Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
         deleteBtn.getStyleClass().add("danger-btn");
         deleteBtn.setMaxWidth(Double.MAX_VALUE);
@@ -322,9 +399,6 @@ public class AdminDashboardView {
                 notesLbl,
                 new Separator(),
                 priceLbl,
-                assignedHead,
-                pillBox,
-                assignBtn,
                 deleteBtn
         );
 
