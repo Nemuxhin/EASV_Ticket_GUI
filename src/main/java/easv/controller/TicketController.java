@@ -170,16 +170,28 @@ public class TicketController {
         return ticketManager.findByToken(secureToken);
     }
 
-    public boolean isTicketValid(String secureToken) {
-        return ticketManager.isTicketValid(secureToken);
+    public Ticket findTicketByPublicCodeOrTicketId(String value) {
+        return ticketManager.findTicketByPublicCodeOrTicketId(value);
     }
 
-    public boolean isTicketValid(String secureToken, String eventTitle) {
-        return ticketManager.isTicketValid(secureToken, eventTitle);
+    public SoldTicketRecord findSoldTicketByPublicCodeOrTicketId(String value) {
+        return ticketManager.findSoldTicketByPublicCodeOrTicketId(value);
     }
 
-    public boolean markTicketAsUsed(String secureToken) {
-        return ticketManager.markTicketAsUsed(secureToken);
+    public Ticket buildTicketFromSoldRecord(SoldTicketRecord soldTicket) {
+        return ticketManager.buildTicketFromSoldRecord(soldTicket);
+    }
+
+    public boolean isTicketValid(String lookupValue) {
+        return ticketManager.isTicketValid(lookupValue);
+    }
+
+    public boolean isTicketValid(String lookupValue, String eventTitle) {
+        return ticketManager.isTicketValid(lookupValue, eventTitle);
+    }
+
+    public boolean markTicketAsUsed(String lookupValue) {
+        return ticketManager.markTicketAsUsed(lookupValue);
     }
 
     public boolean setTicketUsedState(String ticketId, boolean used) {

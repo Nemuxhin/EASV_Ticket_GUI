@@ -25,11 +25,11 @@ public class TicketRedemptionService {
         if (input == null) {
             return TicketScanResult.fail(
                     "Scan Failed",
-                    "No QR token or ticket ID was provided."
+                    "No QR token, public code, or ticket ID was provided."
             );
         }
 
-        Ticket ticket = resolveTicket(input);
+        Ticket ticket = ticketController.findTicketByPublicCodeOrTicketId(input);
         if (ticket == null) {
             return TicketScanResult.fail(
                     "Ticket Not Found",
@@ -38,8 +38,7 @@ public class TicketRedemptionService {
         }
 
         if (!ticket.isActive()) {
-            return new TicketScanResult(
-                    false,
+            return TicketScanResult.fail(
                     "Ticket Inactive",
                     "This ticket is no longer active.",
                     ticket
@@ -47,8 +46,7 @@ public class TicketRedemptionService {
         }
 
         if (ticket.isUsed()) {
-            return new TicketScanResult(
-                    false,
+            return TicketScanResult.fail(
                     "Already Used",
                     "This ticket has already been scanned and cannot be used again.",
                     ticket
@@ -56,56 +54,28 @@ public class TicketRedemptionService {
         }
 
         if (selectedEvent != null && !ticket.matchesEvent(selectedEvent.getTitle())) {
-            return new TicketScanResult(
-                    false,
+            return TicketScanResult.fail(
                     "Wrong Event",
                     "This ticket is not valid for the selected event.",
                     ticket
             );
         }
 
-        String secureToken = normalize(ticket.getSecureToken());
-        if (secureToken == null) {
-            return new TicketScanResult(
-                    false,
-                    "Scan Failed",
-                    "This ticket does not contain a valid redeemable token.",
-                    ticket
-            );
-        }
-
-        boolean updated = ticketController.markTicketAsUsed(secureToken);
+        boolean updated = ticketController.markTicketAsUsed(input);
         if (!updated) {
-            Ticket latestTicket = resolveTicket(input);
-            return new TicketScanResult(
-                    false,
+            Ticket latestTicket = ticketController.findTicketByPublicCodeOrTicketId(input);
+            return TicketScanResult.fail(
                     "Scan Failed",
                     "The ticket was found, but it could not be marked as used.",
                     latestTicket != null ? latestTicket : ticket
             );
         }
 
-        Ticket updatedTicket = ticketController.findByToken(secureToken);
+        Ticket updatedTicket = ticketController.findTicketByPublicCodeOrTicketId(input);
         return TicketScanResult.ok(
                 updatedTicket != null ? updatedTicket : ticket,
                 "Ticket accepted and marked as used."
         );
-    }
-
-    private Ticket resolveTicket(String input) {
-        Ticket byToken = ticketController.findByToken(input);
-        if (byToken != null) {
-            return byToken;
-        }
-
-        for (Ticket ticket : ticketController.getAllTickets()) {
-            String ticketId = normalize(ticket.getTicketId());
-            if (ticketId != null && ticketId.equalsIgnoreCase(input)) {
-                return ticket;
-            }
-        }
-
-        return null;
     }
 
     private String normalize(String value) {

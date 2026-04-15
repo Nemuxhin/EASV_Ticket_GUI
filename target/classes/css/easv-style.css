@@ -69,6 +69,7 @@
 .card-subtitle { -fx-font-size: 12px; -fx-text-fill: #718096; }
 .status-avail { -fx-background-color: #DEF7EC; -fx-text-fill: #03543F; -fx-padding: 4px 8px; -fx-background-radius: 10px; -fx-font-size: 11px; }
 .status-fast { -fx-background-color: #FEF3C7; -fx-text-fill: #92400E; -fx-padding: 4px 8px; -fx-background-radius: 10px; -fx-font-size: 11px; }
+.status-sold { -fx-background-color: #FDE8E8; -fx-text-fill: #C81E1E; -fx-padding: 4px 8px; -fx-background-radius: 10px; -fx-font-size: 11px; }
 
 /* --- COORD PILLS & BUY TICKETS --- */
 .coord-pill { -fx-background-color: #DEF7EC; -fx-text-fill: #03543F; -fx-padding: 4px 10px; -fx-background-radius: 12px; -fx-font-size: 11px; }
