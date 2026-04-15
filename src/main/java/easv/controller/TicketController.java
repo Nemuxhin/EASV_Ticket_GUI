@@ -2,6 +2,8 @@ package easv.controller;
 
 import easv.be.Customer;
 import easv.be.Event;
+import easv.be.SoldTicketRecord;
+import easv.be.SpecialTicketRecord;
 import easv.be.Ticket;
 import easv.bll.TicketManager;
 
@@ -104,6 +106,26 @@ public class TicketController {
         );
     }
 
+    public void createSpecialTicketDefinition(String eventTitle,
+                                              String ticketType,
+                                              String ticketDescription,
+                                              String price,
+                                              int quantity,
+                                              boolean validForAllEvents) {
+        ticketManager.createSpecialTicketDefinition(
+                eventTitle,
+                ticketType,
+                ticketDescription,
+                price,
+                quantity,
+                validForAllEvents
+        );
+    }
+
+    public List<Ticket> issueSpecialTicketDefinition(SpecialTicketRecord definition, Event event) {
+        return ticketManager.issueSpecialTicketDefinition(definition, event);
+    }
+
     public LinkedHashMap<String, String> getTicketTypePricesForEvent(Event event) {
         return ticketManager.getTicketTypePricesForEvent(event);
     }
@@ -132,6 +154,14 @@ public class TicketController {
         return ticketManager.getSpecialTickets();
     }
 
+    public List<SpecialTicketRecord> getSpecialTicketRecords() {
+        return ticketManager.getSpecialTicketRecords();
+    }
+
+    public List<SoldTicketRecord> getSoldTickets() {
+        return ticketManager.getSoldTickets();
+    }
+
     public boolean deactivateSpecialTicketGroup(String ticketGroupId) {
         return ticketManager.deactivateSpecialTicketGroup(ticketGroupId);
     }
@@ -154,5 +184,13 @@ public class TicketController {
 
     public boolean setTicketUsedState(String ticketId, boolean used) {
         return ticketManager.setTicketUsedState(ticketId, used);
+    }
+
+    public boolean setSoldTicketUsedState(String publicCode, boolean used) {
+        return ticketManager.setSoldTicketUsedState(publicCode, used);
+    }
+
+    public String getEventStatus(Event event) {
+        return ticketManager.getEventStatus(event);
     }
 }

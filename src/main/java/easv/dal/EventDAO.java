@@ -28,21 +28,39 @@ public class EventDAO {
                 ORDER BY Date
                 """;
 
-        List<Event> events = new ArrayList<>();
+        return getEventsByQuery(sql, "Could not load events.");
+    }
 
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet resultSet = statement.executeQuery()) {
+    public List<Event> getArchivedEvents() {
+        String sql = """
+                SELECT EventID, Name, Location, Date, Notes, Status, EndDate, LocationGuidance, StandardPrice, Capacity
+                FROM Events
+                WHERE Status = 'Archived'
+                ORDER BY Date DESC
+                """;
 
-            while (resultSet.next()) {
-                int eventId = resultSet.getInt("EventID");
-                events.add(mapEvent(resultSet, getCoordinators(connection, eventId)));
-            }
-        } catch (SQLException ex) {
-            throw new RuntimeException("Could not load events.", ex);
+        return getEventsByQuery(sql, "Could not load archived events.");
+    }
+
+    public void restoreEvent(Event event) {
+        Integer eventId = findEventId(event);
+        if (eventId == null) {
+            return;
         }
 
-        return events;
+        String sql = """
+                UPDATE Events
+                SET Status = 'Available'
+                WHERE EventID = ?
+                """;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, eventId);
+            statement.executeUpdate();
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not restore event.", ex);
+        }
     }
 
     public void addEvent(Event event) {
@@ -73,13 +91,18 @@ public class EventDAO {
             return;
         }
 
-        String sql = "DELETE FROM Events WHERE EventID = ?";
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            connection.setAutoCommit(false);
+            try (PreparedStatement statement = connection.prepareStatement("DELETE FROM Events WHERE EventID = ?")) {
+                deleteDependentRows(connection, event, eventId);
 
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-
-            statement.setInt(1, eventId);
-            statement.executeUpdate();
+                statement.setInt(1, eventId);
+                statement.executeUpdate();
+                connection.commit();
+            } catch (SQLException ex) {
+                connection.rollback();
+                throw ex;
+            }
         } catch (SQLException ex) {
             throw new RuntimeException("Could not delete event.", ex);
         }
@@ -149,6 +172,28 @@ public class EventDAO {
         }
     }
 
+    public void updateEventStatus(Event event, String status) {
+        Integer eventId = findEventId(event);
+        if (eventId == null) {
+            return;
+        }
+
+        String sql = """
+                UPDATE Events
+                SET Status = ?
+                WHERE EventID = ?
+                """;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, status);
+            statement.setInt(2, eventId);
+            statement.executeUpdate();
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not update event status.", ex);
+        }
+    }
+
     private Event mapEvent(ResultSet resultSet, String[] coordinators) throws SQLException {
         return new Event(
                 resultSet.getString("Name"),
@@ -162,6 +207,24 @@ public class EventDAO {
                 resultSet.getString("Status"),
                 coordinators
         );
+    }
+
+    private List<Event> getEventsByQuery(String sql, String errorMessage) {
+        List<Event> events = new ArrayList<>();
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+
+            while (resultSet.next()) {
+                int eventId = resultSet.getInt("EventID");
+                events.add(mapEvent(resultSet, getCoordinators(connection, eventId)));
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException(errorMessage, ex);
+        }
+
+        return events;
     }
 
     private String[] getCoordinators(Connection connection, int eventId) throws SQLException {
@@ -229,13 +292,19 @@ public class EventDAO {
     }
 
     private Integer findEventId(Event event) {
-        String sql = "SELECT TOP 1 EventID FROM Events WHERE Name = ? AND Location = ? ORDER BY EventID DESC";
+        String sql = """
+                SELECT TOP 1 EventID
+                FROM Events
+                WHERE Name = ? AND Location = ? AND Date = ?
+                ORDER BY EventID DESC
+                """;
 
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setString(1, event.getTitle());
             statement.setString(2, event.getLocation());
+            statement.setTimestamp(3, parseDateTime(event.getStartDateTime()));
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 if (resultSet.next()) {
@@ -325,5 +394,78 @@ public class EventDAO {
         }
 
         statement.setInt(index, Integer.parseInt(value.trim()));
+    }
+
+    private void deleteDependentRows(Connection connection, Event event, int eventId) throws SQLException {
+        deleteIfColumnExists(connection, "UserEvent", "EventID", eventId);
+        deleteIfColumnExists(connection, "SpecialTickets", "EventID", eventId);
+        deleteCustomerTicketsForEvent(connection, eventId);
+        deleteIfColumnExists(connection, "Tickets", "EventID", eventId);
+        deleteIfColumnExists(connection, "SoldTickets", "EventName", event.getTitle());
+    }
+
+    private void deleteCustomerTicketsForEvent(Connection connection, int eventId) throws SQLException {
+        if (!tableExists(connection, "CustomerTickets")
+                || !tableExists(connection, "Tickets")
+                || !columnExists(connection, "CustomerTickets", "TicketID")
+                || !columnExists(connection, "Tickets", "TicketID")
+                || !columnExists(connection, "Tickets", "EventID")) {
+            return;
+        }
+
+        String sql = """
+                DELETE ct
+                FROM CustomerTickets ct
+                JOIN Tickets t ON t.TicketID = ct.TicketID
+                WHERE t.EventID = ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, eventId);
+            statement.executeUpdate();
+        }
+    }
+
+    private void deleteIfColumnExists(Connection connection, String tableName, String columnName, Object value) throws SQLException {
+        if (!tableExists(connection, tableName) || !columnExists(connection, tableName, columnName)) {
+            return;
+        }
+
+        String sql = "DELETE FROM " + tableName + " WHERE " + columnName + " = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setObject(1, value);
+            statement.executeUpdate();
+        }
+    }
+
+    private boolean tableExists(Connection connection, String tableName) throws SQLException {
+        String sql = """
+                SELECT 1
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, tableName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
+    }
+
+    private boolean columnExists(Connection connection, String tableName, String columnName) throws SQLException {
+        String sql = """
+                SELECT 1
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = ? AND COLUMN_NAME = ?
+                """;
+
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, tableName);
+            statement.setString(2, columnName);
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        }
     }
 }

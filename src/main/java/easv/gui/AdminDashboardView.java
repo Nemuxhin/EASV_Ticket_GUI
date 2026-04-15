@@ -3,6 +3,7 @@ package easv.gui;
 import easv.be.Event;
 import easv.be.User;
 import easv.controller.EventController;
+import easv.controller.TicketController;
 import easv.controller.UserController;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
@@ -34,6 +35,7 @@ public class AdminDashboardView {
 
     private final MainView mainView;
     private final EventController eventController;
+    private final TicketController ticketController;
     private final UserController userController;
     private final String activeTab;
 
@@ -41,6 +43,7 @@ public class AdminDashboardView {
                               UserController userController, String activeTab) {
         this.mainView = mainView;
         this.eventController = eventController;
+        this.ticketController = new TicketController();
         this.userController = userController;
         this.activeTab = activeTab;
     }
@@ -53,6 +56,7 @@ public class AdminDashboardView {
         VBox content = switch (activeTab) {
             case "Events" -> createEventsContent();
             case "Manage Access" -> createManageAccessContent();
+            case "Create Coordinator" -> createCoordinatorCreateContent();
             default -> createCoordinatorsContent();
         };
 
@@ -79,6 +83,12 @@ public class AdminDashboardView {
                 e -> mainView.showAdminDashboard("Coordinators")
         );
 
+        Button createCoordinatorBtn = createMenuBtn(
+                "+ Create Coordinator",
+                "Create Coordinator".equals(activeTab),
+                e -> mainView.showAdminDashboard("Create Coordinator")
+        );
+
         Button eventsBtn = createMenuBtn(
                 "\uD83D\uDCC5 Events",
                 "Events".equals(activeTab),
@@ -99,24 +109,8 @@ public class AdminDashboardView {
         logoutBtn.setMaxWidth(Double.MAX_VALUE);
         logoutBtn.setOnAction(e -> mainView.showPortalSelection());
 
-        sidebar.getChildren().addAll(logo, coordinatorsBtn, manageAccessBtn, eventsBtn, spacer, logoutBtn);
+        sidebar.getChildren().addAll(logo, coordinatorsBtn, createCoordinatorBtn, manageAccessBtn, eventsBtn, spacer, logoutBtn);
         return sidebar;
-    }
-
-    private HBox createCoordinatorTabs(String selectedTab) {
-        HBox tabs = new HBox(10);
-        tabs.setAlignment(Pos.CENTER_LEFT);
-
-        Button coordinatorsTab = new Button("Coordinators");
-        coordinatorsTab.getStyleClass().add("Coordinators".equals(selectedTab) ? "tab-btn-active" : "tab-btn");
-        coordinatorsTab.setOnAction(e -> mainView.showAdminDashboard("Coordinators"));
-
-        Button accessTab = new Button("Manage Access");
-        accessTab.getStyleClass().add("Manage Access".equals(selectedTab) ? "tab-btn-active" : "tab-btn");
-        accessTab.setOnAction(e -> mainView.showAdminDashboard("Manage Access"));
-
-        tabs.getChildren().addAll(coordinatorsTab, accessTab);
-        return tabs;
     }
 
     private VBox createCoordinatorsContent() {
@@ -137,18 +131,6 @@ public class AdminDashboardView {
         searchBar.getStyleClass().add("search-bar");
         searchBar.setMaxWidth(400);
 
-        HBox topBar = new HBox(16);
-        topBar.setAlignment(Pos.CENTER_LEFT);
-
-        Region topSpacer = new Region();
-        HBox.setHgrow(topSpacer, Priority.ALWAYS);
-
-        Button createBtn = new Button("+ Create Coordinator");
-        createBtn.getStyleClass().add("primary-btn");
-        createBtn.setOnAction(e -> showCoordinatorCreateForm(content));
-
-        topBar.getChildren().addAll(title, topSpacer, createBtn);
-
         FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
         grid.setPrefWrapLength(1000);
 
@@ -157,6 +139,7 @@ public class AdminDashboardView {
         for (User user : coordinators) {
             VBox card = new VBox(10);
             card.getStyleClass().add("event-card");
+            card.setMinHeight(240);
 
             Label nameLbl = new Label("\uD83D\uDC64 " + user.getName());
             nameLbl.getStyleClass().add("card-title");
@@ -172,18 +155,30 @@ public class AdminDashboardView {
             editBtn.setMaxWidth(Double.MAX_VALUE);
             editBtn.setOnAction(e -> showCoordinatorEditForm(content, user));
 
-            Button deleteBtn = new Button("\uD83D\uDDD1 Delete");
+            Button deleteBtn = new Button("\uD83D\uDDD1 Delete Coordinator");
             deleteBtn.getStyleClass().add("danger-btn");
             deleteBtn.setMaxWidth(Double.MAX_VALUE);
             deleteBtn.setOnAction(e -> {
+                boolean confirmed = AlertHelper.showConfirmation(
+                        "Delete Coordinator",
+                        "Are you sure you want to delete the coordinator?"
+                );
+                if (!confirmed) {
+                    return;
+                }
+
                 userController.deleteUser(user);
                 showCoordinatorList(content);
             });
+
+            Region buttonSpacer = new Region();
+            VBox.setVgrow(buttonSpacer, Priority.ALWAYS);
 
             card.getChildren().addAll(
                     nameLbl,
                     emailLbl,
                     usernameLbl,
+                    buttonSpacer,
                     new Separator(),
                     editBtn,
                     deleteBtn
@@ -191,7 +186,14 @@ public class AdminDashboardView {
             grid.getChildren().add(card);
         }
 
-        content.getChildren().addAll(createCoordinatorTabs("Coordinators"), topBar, searchBar, grid);
+        content.getChildren().addAll(title, searchBar, grid);
+    }
+
+    private VBox createCoordinatorCreateContent() {
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(30, 50, 30, 50));
+        showCoordinatorCreateForm(content);
+        return content;
     }
 
     private VBox createManageAccessContent() {
@@ -208,7 +210,7 @@ public class AdminDashboardView {
             list.getChildren().add(createManageAccessCard(event, coordinators));
         }
 
-        content.getChildren().addAll(createCoordinatorTabs("Manage Access"), title, list);
+        content.getChildren().addAll(title, list);
         return content;
     }
 
@@ -263,7 +265,6 @@ public class AdminDashboardView {
             none.getStyleClass().add("card-text");
             pills.getChildren().add(none);
         }
-
         card.getChildren().addAll(title, date, assigned, pills);
         return card;
     }
@@ -336,17 +337,21 @@ public class AdminDashboardView {
     }
 
     private VBox createEventCard(Event event) {
+        return createEventCard(event, true);
+    }
+
+    private VBox createEventCard(Event event, boolean allowDelete) {
         VBox card = new VBox(10);
         card.getStyleClass().add("event-card");
+        card.setMinHeight(340);
 
         HBox top = new HBox();
         Label titleLbl = new Label(event.getTitle());
         titleLbl.getStyleClass().add("card-title");
 
-        Label statusLbl = new Label(event.getStatus());
-        statusLbl.getStyleClass().add(
-                "Available".equals(event.getStatus()) ? "status-avail" : "status-fast"
-        );
+        String status = ticketController.getEventStatus(event);
+        Label statusLbl = new Label(status);
+        statusLbl.getStyleClass().add(statusStyleClass(status));
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -383,13 +388,8 @@ public class AdminDashboardView {
         Label priceLbl = new Label(event.getPrice());
         priceLbl.getStyleClass().add("price-text");
 
-        Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
-        deleteBtn.getStyleClass().add("danger-btn");
-        deleteBtn.setMaxWidth(Double.MAX_VALUE);
-        deleteBtn.setOnAction(e -> {
-            eventController.deleteEvent(event);
-            mainView.showAdminDashboard("Events");
-        });
+        Region buttonSpacer = new Region();
+        VBox.setVgrow(buttonSpacer, Priority.ALWAYS);
 
         card.getChildren().addAll(
                 top,
@@ -397,10 +397,30 @@ public class AdminDashboardView {
                 locationBox,
                 notesHead,
                 notesLbl,
+                buttonSpacer,
                 new Separator(),
-                priceLbl,
-                deleteBtn
+                priceLbl
         );
+
+        if (allowDelete) {
+            Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
+            deleteBtn.getStyleClass().add("danger-btn");
+            deleteBtn.setMaxWidth(Double.MAX_VALUE);
+            deleteBtn.setOnAction(e -> {
+                boolean confirmed = AlertHelper.showConfirmation(
+                        "Delete Event",
+                        "Are you sure you want to delete the event?"
+                );
+                if (!confirmed) {
+                    return;
+                }
+
+                eventController.deleteEvent(event);
+                mainView.showAdminDashboard("Events");
+            });
+
+            card.getChildren().add(deleteBtn);
+        }
 
         return card;
     }
@@ -469,6 +489,7 @@ public class AdminDashboardView {
             );
 
             userController.createUser(user);
+            AlertHelper.showInfo("Coordinator Created", "The coordinator was created successfully.");
             onDoneOrCancel.run();
         });
 
@@ -529,6 +550,7 @@ public class AdminDashboardView {
             }
 
             userController.updateUser(user, name, email, username, password);
+            AlertHelper.showInfo("Coordinator Updated", "The coordinator changes were saved successfully.");
             onDoneOrCancel.run();
         });
 
@@ -724,5 +746,13 @@ public class AdminDashboardView {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    private String statusStyleClass(String status) {
+        return switch (status) {
+            case "Sold Out" -> "status-sold";
+            case "Fast Selling" -> "status-fast";
+            default -> "status-avail";
+        };
     }
 }

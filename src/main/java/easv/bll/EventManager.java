@@ -17,12 +17,15 @@ public class EventManager {
     private final EventDAO eventDAO = new EventDAO();
 
     public List<Event> getEvents() { return eventDAO.getAllEvents(); }
+    public List<Event> getArchivedEvents() { return eventDAO.getArchivedEvents(); }
     public void createEvent(Event event) { eventDAO.addEvent(event); }
     public void addEvent(Event event) { eventDAO.addEvent(event); }
     public boolean updateEvent(Event currentEvent, Event updatedEvent) { return eventDAO.updateEvent(currentEvent, updatedEvent); }
     public void deleteEvent(Event event) { eventDAO.deleteEvent(event); }
+    public void restoreEvent(Event event) { eventDAO.restoreEvent(event); }
     public void assignCoordinator(Event event, String coordinatorName) { eventDAO.assignCoordinator(event, coordinatorName); }
     public void setCoordinators(Event event, String[] coordinators) { eventDAO.setCoordinators(event, coordinators); }
+    public void updateEventStatus(Event event, String status) { eventDAO.updateEventStatus(event, status); }
 
     public String validateEvent(String title, String date, String time, String venue, String capacity, String price) {
         if (title == null || title.trim().isEmpty()) return "Please enter an event title.";

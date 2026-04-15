@@ -40,6 +40,13 @@
 .form-label { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #4A5568; }
 .input-field { -fx-background-color: white; -fx-border-color: #CBD5E0; -fx-border-radius: 4px; -fx-padding: 10px; -fx-font-size: 14px; }
 .input-field:focused { -fx-border-color: #D9705A; }
+.locked-field {
+    -fx-background-color: #EDF2F7;
+    -fx-border-color: #CBD5E0;
+    -fx-text-fill: #4A5568;
+    -fx-opacity: 1;
+}
+.locked-field:focused { -fx-border-color: #CBD5E0; }
 
 /* --- BUTTONS --- */
 .primary-btn { -fx-background-color: #D9705A; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 6px; -fx-padding: 12px; -fx-cursor: hand; }
@@ -69,6 +76,7 @@
 .card-subtitle { -fx-font-size: 12px; -fx-text-fill: #718096; }
 .status-avail { -fx-background-color: #DEF7EC; -fx-text-fill: #03543F; -fx-padding: 4px 8px; -fx-background-radius: 10px; -fx-font-size: 11px; }
 .status-fast { -fx-background-color: #FEF3C7; -fx-text-fill: #92400E; -fx-padding: 4px 8px; -fx-background-radius: 10px; -fx-font-size: 11px; }
+.status-sold { -fx-background-color: #FDE8E8; -fx-text-fill: #C81E1E; -fx-padding: 4px 8px; -fx-background-radius: 10px; -fx-font-size: 11px; }
 
 /* --- COORD PILLS & BUY TICKETS --- */
 .coord-pill { -fx-background-color: #DEF7EC; -fx-text-fill: #03543F; -fx-padding: 4px 10px; -fx-background-radius: 12px; -fx-font-size: 11px; }

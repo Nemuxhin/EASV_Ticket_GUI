@@ -2,7 +2,13 @@ package easv.bll;
 
 import easv.be.Customer;
 import easv.be.Event;
+import easv.be.SoldTicketRecord;
+import easv.be.SpecialTicketRecord;
 import easv.be.Ticket;
+import easv.dal.CustomerDAO;
+import easv.dal.EventDAO;
+import easv.dal.SpecialTicketDAO;
+import easv.dal.SoldTicketDAO;
 import easv.dal.TicketDAO;
 
 import java.util.ArrayList;
@@ -13,12 +19,20 @@ import java.util.Locale;
 public class TicketManager {
 
     private final TicketDAO ticketDAO;
+    private final CustomerDAO customerDAO;
+    private final EventDAO eventDAO;
+    private final SpecialTicketDAO specialTicketDAO;
+    private final SoldTicketDAO soldTicketDAO;
     private final TokenGenerator tokenGenerator;
     private final QrCodeGenerator qrCodeGenerator;
     private final BarcodeGenerator barcodeGenerator;
 
     public TicketManager() {
         this.ticketDAO = new TicketDAO();
+        this.customerDAO = new CustomerDAO();
+        this.eventDAO = new EventDAO();
+        this.specialTicketDAO = new SpecialTicketDAO();
+        this.soldTicketDAO = new SoldTicketDAO();
         this.tokenGenerator = new TokenGenerator();
         this.qrCodeGenerator = new QrCodeGenerator();
         this.barcodeGenerator = new BarcodeGenerator();
@@ -35,7 +49,7 @@ public class TicketManager {
 
         String ticketId = tokenGenerator.generateTicketId();
 
-        return buildAndSaveTicket(
+        Ticket ticket = buildAndSaveTicket(
                 ticketId,
                 ticketId,
                 tokenGenerator.generateSecureToken(),
@@ -52,6 +66,10 @@ public class TicketManager {
                 false,
                 false
         );
+
+        soldTicketDAO.saveSoldTicket(ticket);
+        syncEventStatus(event);
+        return ticket;
     }
 
     public List<Ticket> createEventTickets(Event event,
@@ -64,6 +82,8 @@ public class TicketManager {
                                            int quantity) {
         validateEventTicketInput(event, customer, ticketType, pricePerTicket);
         validateQuantity(quantity);
+
+        persistCustomerPurchase(event, customer, ticketType, quantity);
 
         List<Ticket> createdTickets = new ArrayList<>();
 
@@ -89,8 +109,10 @@ public class TicketManager {
             );
 
             createdTickets.add(ticket);
+            soldTicketDAO.saveSoldTicket(ticket);
         }
 
+        syncEventStatus(event);
         return createdTickets;
     }
 
@@ -108,13 +130,16 @@ public class TicketManager {
 
         String ticketId = tokenGenerator.generateTicketId();
         String ticketGroupId = tokenGenerator.generateSecureToken();
+        String normalizedEventTitle = normalizeEventTitle(eventTitle, validForAllEvents);
 
-        return buildAndSaveTicket(
+        specialTicketDAO.createSpecialTicket(ticketType, ticketDescription, normalizedEventTitle, ticketGroupId, price, 1, validForAllEvents);
+
+        Ticket ticket = buildAndSaveTicket(
                 ticketId,
                 ticketGroupId,
                 tokenGenerator.generateSecureToken(),
                 null,
-                normalizeEventTitle(eventTitle, validForAllEvents),
+                normalizedEventTitle,
                 eventStartDateTime,
                 eventEndDateTime,
                 eventLocation,
@@ -126,6 +151,9 @@ public class TicketManager {
                 true,
                 validForAllEvents
         );
+
+        soldTicketDAO.saveSoldTicket(ticket);
+        return ticket;
     }
 
     public List<Ticket> createSpecialTickets(String eventTitle,
@@ -144,19 +172,22 @@ public class TicketManager {
 
         List<Ticket> createdTickets = new ArrayList<>();
         String ticketGroupId = tokenGenerator.generateSecureToken();
+        String normalizedEventTitle = normalizeEventTitle(eventTitle, validForAllEvents);
+
+        specialTicketDAO.createSpecialTicket(ticketType, ticketDescription, normalizedEventTitle, ticketGroupId, price, quantity, validForAllEvents);
 
         for (int i = 0; i < quantity; i++) {
             String ticketId = tokenGenerator.generateTicketId();
 
             Ticket ticket = buildAndSaveTicket(
-                    ticketId,
-                    ticketGroupId,
-                    tokenGenerator.generateSecureToken(),
-                    null,
-                    normalizeEventTitle(eventTitle, validForAllEvents),
-                    eventStartDateTime,
-                    eventEndDateTime,
-                    eventLocation,
+                ticketId,
+                ticketGroupId,
+                tokenGenerator.generateSecureToken(),
+                null,
+                normalizedEventTitle,
+                eventStartDateTime,
+                eventEndDateTime,
+                eventLocation,
                     eventLocationGuidance,
                     eventNotes,
                     ticketType,
@@ -167,8 +198,90 @@ public class TicketManager {
             );
 
             createdTickets.add(ticket);
+            soldTicketDAO.saveSoldTicket(ticket);
         }
 
+        return createdTickets;
+    }
+
+    public void createSpecialTicketDefinition(String eventTitle,
+                                              String ticketType,
+                                              String ticketDescription,
+                                              String price,
+                                              int quantity,
+                                              boolean validForAllEvents) {
+        validateSpecialTicketInput(eventTitle, ticketType, price, validForAllEvents);
+        validateQuantity(quantity);
+
+        String publicCode = tokenGenerator.generateSecureToken();
+        String normalizedEventTitle = normalizeEventTitle(eventTitle, validForAllEvents);
+        specialTicketDAO.createSpecialTicket(
+                ticketType,
+                ticketDescription,
+                normalizedEventTitle,
+                publicCode,
+                price,
+                quantity,
+                validForAllEvents
+        );
+    }
+
+    public List<Ticket> issueSpecialTicketDefinition(SpecialTicketRecord definition,
+                                                     Event event) {
+        if (definition == null) {
+            throw new IllegalArgumentException("Special ticket definition cannot be null.");
+        }
+
+        if (!definition.isActive()) {
+            throw new IllegalArgumentException("The selected special ticket is not active.");
+        }
+
+        int quantity = definition.getQuantity();
+        validateQuantity(quantity);
+
+        String eventTitle = definition.isValidForAllEvents()
+                ? normalizeEventTitle(null, true)
+                : event != null ? event.getTitle() : safeEventTitle(definition.getEventName());
+
+        if (!definition.isValidForAllEvents() && (eventTitle == null || eventTitle.isBlank())) {
+            throw new IllegalArgumentException("The event for this special ticket could not be found.");
+        }
+
+        String eventStartDateTime = event != null ? event.getStartDateTime() : "";
+        String eventEndDateTime = event != null ? event.getEndDateTime() : "";
+        String eventLocation = event != null ? event.getLocation() : "";
+        String eventLocationGuidance = event != null ? event.getLocationGuidance() : "";
+        String eventNotes = event != null ? mergeNotes(event.getNotes(), definition.getDescription()) : safeDescription(definition.getDescription());
+
+        List<Ticket> createdTickets = new ArrayList<>();
+        String ticketGroupId = definition.getPublicCode();
+
+        for (int i = 0; i < quantity; i++) {
+            String ticketId = tokenGenerator.generateTicketId();
+
+            Ticket ticket = buildAndSaveTicket(
+                    ticketId,
+                    ticketGroupId,
+                    tokenGenerator.generateSecureToken(),
+                    null,
+                    eventTitle,
+                    eventStartDateTime,
+                    eventEndDateTime,
+                    eventLocation,
+                    eventLocationGuidance,
+                    eventNotes,
+                    definition.getSpecialTicketName(),
+                    safeDescription(definition.getDescription()),
+                    definition.getPrice(),
+                    true,
+                    definition.isValidForAllEvents()
+            );
+
+            createdTickets.add(ticket);
+            soldTicketDAO.saveSoldTicket(ticket);
+        }
+
+        specialTicketDAO.deactivateSpecialTicket(definition.getPublicCode());
         return createdTickets;
     }
 
@@ -188,11 +301,19 @@ public class TicketManager {
         return result;
     }
 
+    public List<SpecialTicketRecord> getSpecialTicketRecords() {
+        return specialTicketDAO.getAllSpecialTickets();
+    }
+
+    public List<SoldTicketRecord> getSoldTickets() {
+        return soldTicketDAO.getAllSoldTickets();
+    }
+
     public boolean deactivateSpecialTicketGroup(String ticketGroupId) {
         List<Ticket> ticketsInGroup = ticketDAO.findByGroupId(ticketGroupId);
 
         if (ticketsInGroup.isEmpty()) {
-            return false;
+            return specialTicketDAO.deactivateSpecialTicket(ticketGroupId);
         }
 
         boolean changed = false;
@@ -205,7 +326,8 @@ public class TicketManager {
             }
         }
 
-        return changed;
+        boolean databaseChanged = specialTicketDAO.deactivateSpecialTicket(ticketGroupId);
+        return changed || databaseChanged;
     }
 
     public LinkedHashMap<String, String> getTicketTypePricesForEvent(Event event) {
@@ -213,37 +335,7 @@ public class TicketManager {
             throw new IllegalArgumentException("Event cannot be null.");
         }
 
-        LinkedHashMap<String, String> ticketTypePrices = getBaseTicketTypes(event);
-
-        LinkedHashMap<String, List<Ticket>> groupedSpecialTickets = groupSpecialTicketsByBatch();
-
-        for (List<Ticket> group : groupedSpecialTickets.values()) {
-            if (group.isEmpty()) {
-                continue;
-            }
-
-            Ticket representative = group.get(0);
-
-            if (!representative.isActive()) {
-                continue;
-            }
-
-            if (!representative.isValidForAllEvents() && !sameEventTitle(representative.getEventTitle(), event.getTitle())) {
-                continue;
-            }
-
-            int remainingCount = countRemainingTickets(group);
-            if (remainingCount <= 0) {
-                continue;
-            }
-
-            String typeName = safeTicketTypeName(representative.getTicketType());
-            if (!ticketTypePrices.containsKey(typeName)) {
-                ticketTypePrices.put(typeName, normalizePrice(representative.getPrice()));
-            }
-        }
-
-        return ticketTypePrices;
+        return getBaseTicketTypes(event);
     }
 
     public LinkedHashMap<String, String> getConfiguredTicketTypesForEvent(Event event) {
@@ -321,6 +413,106 @@ public class TicketManager {
         return false;
     }
 
+    public boolean setSoldTicketUsedState(String publicCode, boolean used) {
+        if (publicCode == null || publicCode.isBlank()) {
+            return false;
+        }
+
+        boolean changed = soldTicketDAO.setUsedState(publicCode, used);
+        if (!changed) {
+            return false;
+        }
+
+        Ticket localTicket = ticketDAO.findByToken(publicCode);
+        if (localTicket != null) {
+            localTicket.setUsed(used);
+            ticketDAO.updateTicket(localTicket);
+        }
+
+        return true;
+    }
+
+    public String getEventStatus(Event event) {
+        if (event == null) {
+            return "Available";
+        }
+
+        backfillSoldTicketsFromLocalStore();
+
+        String capacityText = event.getCapacity();
+        if (capacityText == null || capacityText.isBlank()) {
+            return "Available";
+        }
+
+        int capacity = Integer.parseInt(capacityText.trim());
+        if (capacity <= 0) {
+            return "Sold Out";
+        }
+
+        int soldTickets = 0;
+        for (SoldTicketRecord soldTicket : soldTicketDAO.getAllSoldTickets()) {
+            if (!sameEventTitle(soldTicket.getEventName(), event.getTitle())) {
+                continue;
+            }
+
+            if ((soldTicket.getCustomerName() == null || soldTicket.getCustomerName().isBlank())
+                    && (soldTicket.getCustomerEmail() == null || soldTicket.getCustomerEmail().isBlank())) {
+                continue;
+            }
+
+            soldTickets++;
+        }
+
+        if (soldTickets >= capacity) {
+            return "Sold Out";
+        }
+
+        int remainingTickets = capacity - soldTickets;
+        int fastSellingThreshold = Math.max(10, (int) Math.ceil(capacity * 0.2));
+        return remainingTickets <= fastSellingThreshold ? "Fast Selling" : "Available";
+    }
+
+    private void backfillSoldTicketsFromLocalStore() {
+        for (Ticket ticket : ticketDAO.getAllTickets()) {
+            if (ticket == null || ticket.isSpecialTicket() || !ticket.hasCustomer()) {
+                continue;
+            }
+
+            if (soldTicketDAO.existsByPublicCode(ticket.getSecureToken())) {
+                continue;
+            }
+
+            soldTicketDAO.saveSoldTicket(ticket);
+        }
+    }
+
+    private void persistCustomerPurchase(Event event, Customer customer, String ticketType, int quantity) {
+        if (event == null || customer == null || ticketType == null || ticketType.isBlank() || quantity < 1) {
+            return;
+        }
+
+        Integer ticketId = ticketDAO.findTicketTypeId(event, ticketType);
+        if (ticketId == null) {
+            Customer persistedCustomer = customerDAO.save(customer);
+            if (persistedCustomer != null) {
+                customer.setCustomerId(persistedCustomer.getCustomerId());
+            }
+            return;
+        }
+
+        customerDAO.saveCustomerTickets(customer, ticketId, quantity);
+    }
+
+    private void syncEventStatus(Event event) {
+        if (event == null) {
+            return;
+        }
+
+        String status = getEventStatus(event);
+        event.setStatus(status);
+        eventDAO.updateEventStatus(event, status);
+    }
+
     private Ticket buildAndSaveTicket(String ticketId,
                                       String ticketGroupId,
                                       String secureToken,
@@ -391,8 +583,6 @@ public class TicketManager {
         double basePrice = parsePriceValue(event.getPrice());
 
         fallback.put("Standard", formatPrice(basePrice));
-        fallback.put("VIP", formatPrice(basePrice * 1.5));
-        fallback.put("Student", formatPrice(basePrice * 0.7));
         return fallback;
     }
 
@@ -457,6 +647,26 @@ public class TicketManager {
             return "All Events";
         }
         return eventTitle;
+    }
+
+    private String safeEventTitle(String eventTitle) {
+        return eventTitle == null ? "" : eventTitle.trim();
+    }
+
+    private String safeDescription(String description) {
+        return description == null || description.isBlank() ? "Special ticket" : description.trim();
+    }
+
+    private String mergeNotes(String eventNotes, String specialDescription) {
+        if (eventNotes == null || eventNotes.isBlank()) {
+            return safeDescription(specialDescription);
+        }
+
+        if (specialDescription == null || specialDescription.isBlank()) {
+            return eventNotes.trim();
+        }
+
+        return eventNotes.trim() + " " + specialDescription.trim();
     }
 
     private String safeTicketTypeName(String ticketType) {

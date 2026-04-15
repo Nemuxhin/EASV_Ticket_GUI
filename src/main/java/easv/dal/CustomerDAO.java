@@ -58,6 +58,39 @@ public class CustomerDAO {
         }
     }
 
+    public void saveCustomerTickets(Customer customer, int ticketId, int quantity) {
+        if (customer == null || ticketId < 1 || quantity < 1) {
+            return;
+        }
+
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            connection.setAutoCommit(false);
+
+            try {
+                Customer persistedCustomer = save(connection, customer);
+                int customerId = Integer.parseInt(persistedCustomer.getCustomerId());
+
+                String sql = "INSERT INTO CustomerTickets (CustomerID, TicketID) VALUES (?, ?)";
+                try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                    for (int i = 0; i < quantity; i++) {
+                        statement.setInt(1, customerId);
+                        statement.setInt(2, ticketId);
+                        statement.addBatch();
+                    }
+                    statement.executeBatch();
+                }
+
+                connection.commit();
+                customer.setCustomerId(persistedCustomer.getCustomerId());
+            } catch (SQLException ex) {
+                connection.rollback();
+                throw ex;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not save customer ticket links.", ex);
+        }
+    }
+
     Customer save(Connection connection, Customer customer) throws SQLException {
         if (customer == null) {
             return null;
