@@ -11,4 +11,8 @@ public record TicketScanResult(boolean success, String title, String message, Ti
     public static TicketScanResult fail(String title, String message) {
         return new TicketScanResult(false, title, message, null);
     }
+
+    public static TicketScanResult fail(String title, String message, Ticket ticket) {
+        return new TicketScanResult(false, title, message, ticket);
+    }
 }

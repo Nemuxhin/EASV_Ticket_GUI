@@ -4,11 +4,10 @@ import easv.be.Customer;
 import easv.be.Event;
 import easv.be.Ticket;
 import easv.be.TicketPurchase;
+import easv.bll.MailClientService;
+import easv.bll.TicketPdfService;
 import easv.controller.EventController;
 import easv.controller.TicketController;
-import easv.bll.TicketEmailService;
-import easv.bll.TicketPdfService;
-import java.nio.file.Path;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -37,14 +36,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-
 public class TicketSalesView {
     private final MainView mainView;
     private final EventController eventController;
     private final TicketController ticketController;
     private final Event event;
     private final TicketPdfService ticketPdfService;
-    private final TicketEmailService ticketEmailService;
+    private final MailClientService mailClientService;
 
     public TicketSalesView(MainView mainView, EventController eventController, Event event) {
         this.mainView = mainView;
@@ -52,7 +50,7 @@ public class TicketSalesView {
         this.ticketController = new TicketController();
         this.event = event;
         this.ticketPdfService = new TicketPdfService();
-        this.ticketEmailService = new TicketEmailService();
+        this.mailClientService = new MailClientService();
     }
 
     public Parent getView() {
@@ -91,10 +89,17 @@ public class TicketSalesView {
         VBox eventCard = new VBox(10);
         eventCard.getStyleClass().add("event-card");
 
+        int soldCount = getSoldCountForEvent();
+        int capacity = getEventCapacityValue();
+        int remaining = getRemainingCapacity();
+        String liveStatus = getLiveEventStatus();
+
         eventCard.getChildren().addAll(
                 styleLabel(event.getTitle(), "page-title"),
                 styleLabel("Starts: " + safeText(event.getStartDateTime()), "card-text"),
-                styleLabel("Location: " + safeText(event.getLocation()), "card-text")
+                styleLabel("Location: " + safeText(event.getLocation()), "card-text"),
+                styleLabel("Status: " + liveStatus, "card-text"),
+                styleLabel(buildCapacitySummary(soldCount, capacity, remaining), "card-text")
         );
 
         if (event.hasEndDateTime()) {
@@ -122,6 +127,10 @@ public class TicketSalesView {
         emailField.getStyleClass().add("input-field");
 
         LinkedHashMap<String, String> ticketTypePrices = ticketController.getTicketTypePricesForEvent(event);
+        if (ticketTypePrices.isEmpty()) {
+            String fallbackPrice = event.getPrice() == null || event.getPrice().isBlank() ? "Free" : event.getPrice();
+            ticketTypePrices.put("Standard", fallbackPrice);
+        }
 
         String defaultType = ticketTypePrices.keySet().iterator().next();
         StringProperty selectedType = new SimpleStringProperty(defaultType);
@@ -158,7 +167,13 @@ public class TicketSalesView {
 
         Button plus = new Button("+");
         plus.getStyleClass().add("secondary-btn");
-        plus.setOnAction(e -> quantity.set(quantity.get() + 1));
+        plus.setOnAction(e -> {
+            int remaining = getRemainingCapacity();
+            if (remaining != Integer.MAX_VALUE && quantity.get() >= remaining) {
+                return;
+            }
+            quantity.set(quantity.get() + 1);
+        });
 
         HBox quantityBox = new HBox(12, minus, quantityLabel, plus);
         quantityBox.setAlignment(Pos.CENTER_LEFT);
@@ -175,9 +190,12 @@ public class TicketSalesView {
         selectedType.addListener((obs, oldValue, newValue) -> refreshTotal.run());
         quantity.addListener((obs, oldValue, newValue) -> refreshTotal.run());
 
-        Button confirmButton = new Button("Confirm Purchase");
+        Label availabilityText = styleLabel(buildSalesAvailabilityText(), "card-text");
+
+        Button confirmButton = new Button(isSoldOut() ? "Sold Out" : "Confirm Purchase");
         confirmButton.getStyleClass().add("primary-btn");
         confirmButton.setMaxWidth(Double.MAX_VALUE);
+        confirmButton.setDisable(isSoldOut());
         confirmButton.setOnAction(e ->
                 handlePurchase(
                         nameField.getText().trim(),
@@ -196,6 +214,7 @@ public class TicketSalesView {
         formCard.getChildren().addAll(
                 createField("Full Name", nameField),
                 createField("Email", emailField),
+                availabilityText,
                 styleLabel("Select Ticket Type", "notes-head"),
                 helperText,
                 ticketTypeGrid,
@@ -231,6 +250,24 @@ public class TicketSalesView {
         if (validation != null) {
             AlertHelper.showError("Invalid Purchase", validation);
             return;
+        }
+
+        int remaining = getRemainingCapacity();
+        if (remaining != Integer.MAX_VALUE) {
+            if (remaining <= 0) {
+                AlertHelper.showError("Sold Out", "This event is sold out. No more tickets can be sold.");
+                return;
+            }
+
+            if (quantity > remaining) {
+                AlertHelper.showError(
+                        "Not Enough Tickets",
+                        remaining == 1
+                                ? "Only 1 ticket remains for this event."
+                                : "Only " + remaining + " tickets remain for this event."
+                );
+                return;
+            }
         }
 
         String pricePerTicket = ticketTypePrices.get(ticketType);
@@ -329,13 +366,12 @@ public class TicketSalesView {
         mainView.setContent(scrollPane);
     }
 
-
     private VBox buildSuccessHeader(int ticketCount) {
         StackPane iconCircle = new StackPane();
         iconCircle.getStyleClass().add("success-icon-circle");
         iconCircle.setPrefSize(64, 64);
 
-        Label icon = new Label("✓");
+        Label icon = new Label("\u2713");
         icon.getStyleClass().add("success-icon");
         iconCircle.getChildren().add(icon);
 
@@ -372,9 +408,9 @@ public class TicketSalesView {
         VBox eventInfo = new VBox(
                 12,
                 createLabeledValue("Event Name", safeText(ticket.getEventTitle())),
-                createIconRow("📅", extractDate(ticket.getEventStartDateTime())),
-                createIconRow("🕒", extractTime(ticket.getEventStartDateTime())),
-                createIconRow("📍", safeText(ticket.getEventLocation()))
+                createIconRow("\uD83D\uDCC5", extractDate(ticket.getEventStartDateTime())),
+                createIconRow("\uD83D\uDD52", extractTime(ticket.getEventStartDateTime())),
+                createIconRow("\uD83D\uDCCD", safeText(ticket.getEventLocation()))
         );
 
         Label customerInfoTitle = new Label("Customer Information");
@@ -385,8 +421,8 @@ public class TicketSalesView {
 
         VBox customerInfo = new VBox(
                 12,
-                createIconRow("👤", safeText(customerName)),
-                createIconRow("✉", safeText(customerEmail))
+                createIconRow("\uD83D\uDC64", safeText(customerName)),
+                createIconRow("\u2709", safeText(customerEmail))
         );
 
         VBox left = new VBox(
@@ -629,7 +665,7 @@ public class TicketSalesView {
     }
 
     private HBox buildDeliveryActions(List<Ticket> tickets, TicketPurchase purchase) {
-        Button emailButton = new Button("Send Mail");
+        Button emailButton = new Button("Send Email");
         emailButton.getStyleClass().add("primary-btn");
         emailButton.setOnAction(e -> sendTicketsByEmail(tickets, purchase));
 
@@ -644,12 +680,12 @@ public class TicketSalesView {
 
     private void sendTicketsByEmail(List<Ticket> tickets, TicketPurchase purchase) {
         try {
-            ticketEmailService.sendTickets(
-                    purchase.getCustomerName(),
-                    purchase.getCustomerEmail(),
-                    tickets
-            );
-            AlertHelper.showInfo("Email Sent", "The ticket PDF was sent successfully.");
+            ticketPdfService.openTicketsPdf(tickets);
+
+            String subject = "Your ticket(s) for " + safeText(event.getTitle());
+            String body = buildTicketEmailBody(purchase, tickets);
+
+            mailClientService.openDraft(purchase.getCustomerEmail(), subject, body);
         } catch (Exception ex) {
             AlertHelper.showError("Email Failed", ex.getMessage());
         }
@@ -657,12 +693,144 @@ public class TicketSalesView {
 
     private void printTicketsPdf(List<Ticket> tickets) {
         try {
-            Path pdfPath = ticketPdfService.createTempPdf(tickets);
-            ticketPdfService.printPdf(pdfPath);
-            AlertHelper.showInfo("PDF Ready", "The PDF was sent to print or opened in your default PDF viewer.");
+            ticketPdfService.printTicketsPdf(tickets);
         } catch (Exception ex) {
             AlertHelper.showError("Print Failed", ex.getMessage());
         }
     }
 
+    private String buildTicketEmailBody(TicketPurchase purchase, List<Ticket> tickets) {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append("Hi ").append(safeText(purchase.getCustomerName())).append(",\n\n");
+        builder.append("Your ticket(s) for ").append(safeText(event.getTitle())).append(" are ready.\n");
+        builder.append("Ticket type: ").append(safeText(purchase.getTicketType())).append("\n");
+        builder.append("Quantity: ").append(purchase.getQuantity()).append("\n\n");
+        builder.append("Please attach the opened PDF file and send this email.\n\n");
+        builder.append("Ticket IDs:\n");
+
+        for (Ticket ticket : tickets) {
+            builder.append("- ").append(safeText(ticket.getTicketId())).append("\n");
+        }
+
+        builder.append("\nBest regards,\nEASV Tickets");
+        return builder.toString();
+    }
+
+    private int getSoldCountForEvent() {
+        int count = 0;
+
+        for (Ticket ticket : ticketController.getAllTickets()) {
+            if (ticket == null || ticket.isSpecialTicket()) {
+                continue;
+            }
+
+            if (matchesTicketToEvent(ticket)) {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private int getEventCapacityValue() {
+        if (event == null || event.getCapacity() == null) {
+            return Integer.MAX_VALUE;
+        }
+
+        String rawCapacity = event.getCapacity().trim();
+        if (rawCapacity.isBlank()) {
+            return Integer.MAX_VALUE;
+        }
+
+        String digitsOnly = rawCapacity.replaceAll("[^0-9]", "");
+        if (digitsOnly.isBlank()) {
+            return Integer.MAX_VALUE;
+        }
+
+        try {
+            int parsed = Integer.parseInt(digitsOnly);
+            return parsed > 0 ? parsed : Integer.MAX_VALUE;
+        } catch (NumberFormatException ex) {
+            return Integer.MAX_VALUE;
+        }
+    }
+
+    private int getRemainingCapacity() {
+        int capacity = getEventCapacityValue();
+        if (capacity == Integer.MAX_VALUE) {
+            return Integer.MAX_VALUE;
+        }
+
+        return Math.max(capacity - getSoldCountForEvent(), 0);
+    }
+
+    private boolean isSoldOut() {
+        return "Sold Out".equalsIgnoreCase(getLiveEventStatus());
+    }
+
+    private String getLiveEventStatus() {
+        int capacity = getEventCapacityValue();
+        if (capacity == Integer.MAX_VALUE) {
+            return "Available";
+        }
+
+        int remaining = getRemainingCapacity();
+        if (remaining <= 0) {
+            return "Sold Out";
+        }
+
+        int sellingFastThreshold = Math.max(10, (int) Math.ceil(capacity * 0.20));
+        if (remaining <= sellingFastThreshold) {
+            return "Selling Fast";
+        }
+
+        return "Available";
+    }
+
+    private String buildCapacitySummary(int soldCount, int capacity, int remaining) {
+        if (capacity == Integer.MAX_VALUE) {
+            return soldCount == 1 ? "1 ticket sold" : soldCount + " tickets sold";
+        }
+
+        if (remaining <= 0) {
+            return "Capacity reached: " + soldCount + " / " + capacity + " sold";
+        }
+
+        return "Sold: " + soldCount + " / " + capacity + "  |  Left: " + remaining;
+    }
+
+    private String buildSalesAvailabilityText() {
+        int capacity = getEventCapacityValue();
+        int remaining = getRemainingCapacity();
+
+        if (capacity == Integer.MAX_VALUE) {
+            int sold = getSoldCountForEvent();
+            return sold == 0
+                    ? "Capacity is currently not limited for this event."
+                    : sold + " tickets have already been sold. Capacity is not limited.";
+        }
+
+        if (remaining <= 0) {
+            return "This event is sold out. No more tickets can be sold.";
+        }
+
+        return remaining == 1
+                ? "Only 1 ticket remains for this event."
+                : remaining + " tickets remain for this event.";
+    }
+
+    private boolean matchesTicketToEvent(Ticket ticket) {
+        if (ticket == null || event == null) {
+            return false;
+        }
+
+        return normalizeText(ticket.getEventTitle()).equalsIgnoreCase(normalizeText(event.getTitle()))
+                && normalizeText(ticket.getEventLocation()).equalsIgnoreCase(normalizeText(event.getLocation()))
+                && normalizeText(ticket.getEventStartDateTime()).equalsIgnoreCase(normalizeText(event.getStartDateTime()));
+    }
+
+    private String normalizeText(String value) {
+        return value == null ? "" : value.trim();
+    }
 }

@@ -56,16 +56,77 @@ public class TicketPdfService {
         }
     }
 
-    public void printPdf(Path pdfPath) {
+    public Path openTicketsPdf(List<Ticket> tickets) {
+        Path pdfPath = createTempPdf(tickets);
+        openPdf(pdfPath);
+        return pdfPath;
+    }
+
+    public Path printTicketsPdf(List<Ticket> tickets) {
+        Path pdfPath = createTempPdf(tickets);
+        printPdf(pdfPath);
+        return pdfPath;
+    }
+
+    public Path openTicketPdf(Ticket ticket) {
+        return openTicketsPdf(List.of(ticket));
+    }
+
+    public Path printTicketPdf(Ticket ticket) {
+        return printTicketsPdf(List.of(ticket));
+    }
+
+    public void openPdf(Path pdfPath) {
+        ensurePdfExists(pdfPath);
+
         try {
-            Desktop desktop = Desktop.getDesktop();
-            if (desktop.isSupported(Desktop.Action.PRINT)) {
-                desktop.print(pdfPath.toFile());
-            } else {
-                desktop.open(pdfPath.toFile());
+            Desktop desktop = getDesktop();
+            if (!desktop.isSupported(Desktop.Action.OPEN)) {
+                throw new IllegalStateException("Opening PDF files is not supported on this machine.");
             }
+
+            desktop.open(pdfPath.toFile());
         } catch (Exception ex) {
-            throw new RuntimeException("Could not print/open the PDF file.", ex);
+            throw new RuntimeException("Could not open the PDF file.", ex);
+        }
+    }
+
+    public void printPdf(Path pdfPath) {
+        ensurePdfExists(pdfPath);
+
+        Desktop desktop = getDesktop();
+
+        if (desktop.isSupported(Desktop.Action.PRINT)) {
+            try {
+                desktop.print(pdfPath.toFile());
+                return;
+            } catch (Exception ignored) {
+                // Fall back to opening the PDF for manual printing.
+            }
+        }
+
+        if (desktop.isSupported(Desktop.Action.OPEN)) {
+            try {
+                desktop.open(pdfPath.toFile());
+                return;
+            } catch (Exception ex) {
+                throw new RuntimeException("Could not print the PDF file or open it for manual printing.", ex);
+            }
+        }
+
+        throw new RuntimeException("This machine does not support printing or opening PDF files.");
+    }
+
+    private Desktop getDesktop() {
+        if (!Desktop.isDesktopSupported()) {
+            throw new IllegalStateException("Desktop actions are not supported on this machine.");
+        }
+        return Desktop.getDesktop();
+    }
+
+    private void ensurePdfExists(Path pdfPath) {
+        if (pdfPath == null || !Files.exists(pdfPath)) {
+            throw new IllegalArgumentException("The PDF file could not be found.");
         }
     }
 

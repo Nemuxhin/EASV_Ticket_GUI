@@ -13,7 +13,7 @@ public class TicketRedemptionService {
         this.ticketController = new TicketController();
     }
 
-    public TicketScanResult redeem(User currentUser, Event selectedEvent, String secureToken) {
+    public TicketScanResult redeem(User currentUser, Event selectedEvent, String scannedValue) {
         if (currentUser == null || !"Event Coordinator".equalsIgnoreCase(currentUser.getRole())) {
             return TicketScanResult.fail(
                     "Access Denied",
@@ -21,56 +21,99 @@ public class TicketRedemptionService {
             );
         }
 
-        if (secureToken == null || secureToken.isBlank()) {
+        String input = normalize(scannedValue);
+        if (input == null) {
             return TicketScanResult.fail(
                     "Scan Failed",
-                    "No QR token was found."
+                    "No QR token or ticket ID was provided."
             );
         }
 
-        Ticket ticket = ticketController.findByToken(secureToken.trim());
-
+        Ticket ticket = resolveTicket(input);
         if (ticket == null) {
             return TicketScanResult.fail(
                     "Ticket Not Found",
-                    "No ticket matches the scanned code."
+                    "No ticket matches the scanned code or entered ticket ID."
             );
         }
 
         if (!ticket.isActive()) {
-            return TicketScanResult.fail(
+            return new TicketScanResult(
+                    false,
                     "Ticket Inactive",
-                    "This ticket is no longer active."
+                    "This ticket is no longer active.",
+                    ticket
             );
         }
 
         if (ticket.isUsed()) {
-            return TicketScanResult.fail(
+            return new TicketScanResult(
+                    false,
                     "Already Used",
-                    "This ticket has already been scanned and cannot be used again."
+                    "This ticket has already been scanned and cannot be used again.",
+                    ticket
             );
         }
 
         if (selectedEvent != null && !ticket.matchesEvent(selectedEvent.getTitle())) {
-            return TicketScanResult.fail(
+            return new TicketScanResult(
+                    false,
                     "Wrong Event",
-                    "This ticket is not valid for the selected event."
+                    "This ticket is not valid for the selected event.",
+                    ticket
             );
         }
 
-        boolean updated = ticketController.markTicketAsUsed(secureToken.trim());
-
-        if (!updated) {
-            return TicketScanResult.fail(
+        String secureToken = normalize(ticket.getSecureToken());
+        if (secureToken == null) {
+            return new TicketScanResult(
+                    false,
                     "Scan Failed",
-                    "The ticket was found, but it could not be marked as used."
+                    "This ticket does not contain a valid redeemable token.",
+                    ticket
             );
         }
 
-        Ticket updatedTicket = ticketController.findByToken(secureToken.trim());
+        boolean updated = ticketController.markTicketAsUsed(secureToken);
+        if (!updated) {
+            Ticket latestTicket = resolveTicket(input);
+            return new TicketScanResult(
+                    false,
+                    "Scan Failed",
+                    "The ticket was found, but it could not be marked as used.",
+                    latestTicket != null ? latestTicket : ticket
+            );
+        }
+
+        Ticket updatedTicket = ticketController.findByToken(secureToken);
         return TicketScanResult.ok(
                 updatedTicket != null ? updatedTicket : ticket,
                 "Ticket accepted and marked as used."
         );
+    }
+
+    private Ticket resolveTicket(String input) {
+        Ticket byToken = ticketController.findByToken(input);
+        if (byToken != null) {
+            return byToken;
+        }
+
+        for (Ticket ticket : ticketController.getAllTickets()) {
+            String ticketId = normalize(ticket.getTicketId());
+            if (ticketId != null && ticketId.equalsIgnoreCase(input)) {
+                return ticket;
+            }
+        }
+
+        return null;
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmed = value.trim();
+        return trimmed.isBlank() ? null : trimmed;
     }
 }

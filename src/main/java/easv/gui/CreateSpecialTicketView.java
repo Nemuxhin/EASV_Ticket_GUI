@@ -6,7 +6,7 @@ import easv.bll.BarcodeGenerator;
 import easv.bll.QrCodeGenerator;
 import easv.controller.EventController;
 import easv.controller.TicketController;
-import easv.bll.TicketEmailService;
+import easv.bll.MailClientService;
 import easv.bll.TicketPdfService;
 import javafx.scene.control.TextInputDialog;
 import java.nio.file.Path;
@@ -50,7 +50,7 @@ public class CreateSpecialTicketView {
     private final QrCodeGenerator qrCodeGenerator;
     private final BarcodeGenerator barcodeGenerator;
     private final TicketPdfService ticketPdfService;
-    private final TicketEmailService ticketEmailService;
+    private final MailClientService mailClientService;
 
     public CreateSpecialTicketView(MainView mainView) {
         this.mainView = mainView;
@@ -59,7 +59,7 @@ public class CreateSpecialTicketView {
         this.qrCodeGenerator = new QrCodeGenerator();
         this.barcodeGenerator = new BarcodeGenerator();
         this.ticketPdfService = new TicketPdfService();
-        this.ticketEmailService = new TicketEmailService();
+        this.mailClientService = new MailClientService();
     }
 
     public Parent getView() {
@@ -689,7 +689,7 @@ public class CreateSpecialTicketView {
     }
 
     private HBox buildSpecialTicketDeliveryActions(List<Ticket> tickets) {
-        Button emailButton = new Button("Send Mail");
+        Button emailButton = new Button("Send Email");
         emailButton.getStyleClass().add("primary-btn");
         emailButton.setOnAction(e -> promptAndSendSpecialTickets(tickets));
 
@@ -714,8 +714,12 @@ public class CreateSpecialTicketView {
         }
 
         try {
-            ticketEmailService.sendTickets("Guest", recipientEmail, tickets);
-            AlertHelper.showInfo("Email Sent", "The special ticket PDF was sent successfully.");
+            ticketPdfService.openTicketsPdf(tickets);
+
+            String subject = "Special ticket(s) from EASV Tickets";
+            String body = buildSpecialTicketEmailBody(tickets);
+
+            mailClientService.openDraft(recipientEmail, subject, body);
         } catch (Exception ex) {
             AlertHelper.showError("Email Failed", ex.getMessage());
         }
@@ -723,12 +727,28 @@ public class CreateSpecialTicketView {
 
     private void printSpecialTicketsPdf(List<Ticket> tickets) {
         try {
-            Path pdfPath = ticketPdfService.createTempPdf(tickets);
-            ticketPdfService.printPdf(pdfPath);
-            AlertHelper.showInfo("PDF Ready", "The PDF was sent to print or opened in your default PDF viewer.");
+            ticketPdfService.printTicketsPdf(tickets);
         } catch (Exception ex) {
             AlertHelper.showError("Print Failed", ex.getMessage());
         }
     }
+
+    private String buildSpecialTicketEmailBody(List<Ticket> tickets) {
+        Ticket firstTicket = tickets.get(0);
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("Hi,\n\n");
+        builder.append("Your special ticket PDF is ready.\n");
+        builder.append("Ticket type: ").append(safeText(firstTicket.getTicketType(), "-")).append("\n");
+        builder.append("Quantity: ").append(tickets.size()).append("\n");
+        builder.append("Valid for: ")
+                .append(firstTicket.isValidForAllEvents() ? "All events" : safeText(firstTicket.getEventTitle(), "-"))
+                .append("\n\n");
+        builder.append("Please attach the opened PDF file and send this email.\n\n");
+        builder.append("Best regards,\nEASV Tickets");
+
+        return builder.toString();
+    }
+
 
 }
