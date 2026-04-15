@@ -181,7 +181,7 @@ public class TicketSalesView {
         );
 
         Label helperText = styleLabel(
-                "Ticket types below include the event's default tickets and any special tickets created for this event.",
+                "Ticket types below show only the normal ticket types configured for this event.",
                 "card-text"
         );
 
@@ -243,33 +243,16 @@ public class TicketSalesView {
                 purchase.getCustomerEmail()
         );
 
-        List<Ticket> tickets;
-
-        try {
-            if (ticketController.isSpecialTicketTypeForEvent(event, purchase.getTicketType())) {
-                // (Samu) Special tickets already have a unique QR/barcode, so we assign existing tickets.
-                tickets = ticketController.claimSpecialTickets(
-                        event,
-                        customer,
-                        purchase.getTicketType(),
-                        purchase.getQuantity()
-                );
-            } else {
-                tickets = ticketController.createEventTickets(
-                        event,
-                        customer,
-                        purchase.getTicketType(),
-                        describeTicketType(purchase.getTicketType()),
-                        pricePerTicket,
-                        event.getEndDateTime(),
-                        event.getLocationGuidance(),
-                        purchase.getQuantity()
-                );
-            }
-        } catch (IllegalArgumentException | IllegalStateException ex) {
-            AlertHelper.showError("Purchase Failed", ex.getMessage());
-            return;
-        }
+        List<Ticket> tickets = ticketController.createEventTickets(
+                event,
+                customer,
+                purchase.getTicketType(),
+                describeTicketType(purchase.getTicketType()),
+                pricePerTicket,
+                event.getEndDateTime(),
+                event.getLocationGuidance(),
+                purchase.getQuantity()
+        );
 
         showSuccess(tickets, purchase, formatPrice(purchase.getTotalPrice()));
     }
@@ -376,13 +359,17 @@ public class TicketSalesView {
         Label eventDetailsTitle = new Label("Event Details");
         eventDetailsTitle.getStyleClass().add("success-section-title");
 
-        VBox eventInfo = new VBox(
-                12,
+        VBox eventInfo = new VBox(12);
+        eventInfo.getChildren().addAll(
                 createLabeledValue("Event Name", safeText(ticket.getEventTitle())),
                 createIconRow("📅", extractDate(ticket.getEventStartDateTime())),
                 createIconRow("🕒", extractTime(ticket.getEventStartDateTime())),
                 createIconRow("📍", safeText(ticket.getEventLocation()))
         );
+
+        if (ticket.getEventNotes() != null && !ticket.getEventNotes().isBlank()) {
+            eventInfo.getChildren().add(createLabeledValue("Notes", safeText(ticket.getEventNotes())));
+        }
 
         Label customerInfoTitle = new Label("Customer Information");
         customerInfoTitle.getStyleClass().add("success-section-title");

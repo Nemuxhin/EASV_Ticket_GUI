@@ -2,6 +2,8 @@ package easv.controller;
 
 import easv.be.Customer;
 import easv.be.Event;
+import easv.be.SoldTicketRecord;
+import easv.be.SpecialTicketRecord;
 import easv.be.Ticket;
 import easv.bll.TicketManager;
 
@@ -104,16 +106,44 @@ public class TicketController {
         );
     }
 
+    public void createSpecialTicketDefinition(String eventTitle,
+                                              String ticketType,
+                                              String ticketDescription,
+                                              String price,
+                                              int quantity,
+                                              boolean validForAllEvents) {
+        ticketManager.createSpecialTicketDefinition(
+                eventTitle,
+                ticketType,
+                ticketDescription,
+                price,
+                quantity,
+                validForAllEvents
+        );
+    }
+
+    public List<Ticket> issueSpecialTicketDefinition(SpecialTicketRecord definition, Event event) {
+        return ticketManager.issueSpecialTicketDefinition(definition, event);
+    }
+
     public LinkedHashMap<String, String> getTicketTypePricesForEvent(Event event) {
         return ticketManager.getTicketTypePricesForEvent(event);
     }
 
-    public boolean isSpecialTicketTypeForEvent(Event event, String ticketType) {
-        return ticketManager.isSpecialTicketTypeForEvent(event, ticketType);
+    public LinkedHashMap<String, String> getConfiguredTicketTypesForEvent(Event event) {
+        return ticketManager.getConfiguredTicketTypesForEvent(event);
     }
 
-    public List<Ticket> claimSpecialTickets(Event event, Customer customer, String ticketType, int quantity) {
-        return ticketManager.claimSpecialTickets(event, customer, ticketType, quantity);
+    public void setConfiguredTicketTypesForEvent(Event event, LinkedHashMap<String, String> ticketTypes) {
+        ticketManager.setConfiguredTicketTypesForEvent(event, ticketTypes);
+    }
+
+    public void moveConfiguredTicketTypes(Event oldEvent, Event updatedEvent) {
+        ticketManager.moveConfiguredTicketTypes(oldEvent, updatedEvent);
+    }
+
+    public void removeConfiguredTicketTypes(Event event) {
+        ticketManager.removeConfiguredTicketTypes(event);
     }
 
     public List<Ticket> getAllTickets() {
@@ -122,6 +152,14 @@ public class TicketController {
 
     public List<Ticket> getSpecialTickets() {
         return ticketManager.getSpecialTickets();
+    }
+
+    public List<SpecialTicketRecord> getSpecialTicketRecords() {
+        return ticketManager.getSpecialTicketRecords();
+    }
+
+    public List<SoldTicketRecord> getSoldTickets() {
+        return ticketManager.getSoldTickets();
     }
 
     public boolean deactivateSpecialTicketGroup(String ticketGroupId) {
@@ -142,5 +180,17 @@ public class TicketController {
 
     public boolean markTicketAsUsed(String secureToken) {
         return ticketManager.markTicketAsUsed(secureToken);
+    }
+
+    public boolean setTicketUsedState(String ticketId, boolean used) {
+        return ticketManager.setTicketUsedState(ticketId, used);
+    }
+
+    public boolean setSoldTicketUsedState(String publicCode, boolean used) {
+        return ticketManager.setSoldTicketUsedState(publicCode, used);
+    }
+
+    public String getEventStatus(Event event) {
+        return ticketManager.getEventStatus(event);
     }
 }

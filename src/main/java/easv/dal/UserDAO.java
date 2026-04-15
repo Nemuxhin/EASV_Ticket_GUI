@@ -55,20 +55,68 @@ public class UserDAO {
     }
 
     public void deleteUser(User user) {
-        String sql = "DELETE FROM Users WHERE Username = ?";
+        String userIdSql = "SELECT TOP 1 UserID FROM Users WHERE Username = ?";
+        String deleteAssignmentsSql = "DELETE FROM UserEvent WHERE UserID = ?";
+        String deleteUserSql = "DELETE FROM Users WHERE Username = ?";
 
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            connection.setAutoCommit(false);
 
-            statement.setString(1, user.getUsername());
-            statement.executeUpdate();
+            try {
+                Integer userId = null;
+
+                try (PreparedStatement userIdStatement = connection.prepareStatement(userIdSql)) {
+                    userIdStatement.setString(1, user.getUsername());
+
+                    try (ResultSet resultSet = userIdStatement.executeQuery()) {
+                        if (resultSet.next()) {
+                            userId = resultSet.getInt("UserID");
+                        }
+                    }
+                }
+
+                if (userId != null) {
+                    try (PreparedStatement assignmentStatement = connection.prepareStatement(deleteAssignmentsSql)) {
+                        assignmentStatement.setInt(1, userId);
+                        assignmentStatement.executeUpdate();
+                    }
+                }
+
+                try (PreparedStatement deleteUserStatement = connection.prepareStatement(deleteUserSql)) {
+                    deleteUserStatement.setString(1, user.getUsername());
+                    deleteUserStatement.executeUpdate();
+                }
+
+                connection.commit();
+            } catch (SQLException ex) {
+                connection.rollback();
+                throw ex;
+            }
         } catch (SQLException ex) {
             throw new RuntimeException("Could not delete user.", ex);
         }
     }
 
-    public void updateUser(User user) {
-        // In this in-memory setup, the object is already updated by reference. This method is here so it's ready for real database logic later.
+    public void updateUser(User user, String previousUsername) {
+        String sql = """
+                UPDATE Users
+                SET Names = ?, Username = ?, Password = ?, UserEmail = ?
+                WHERE Username = ? AND Role = ?
+                """;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, user.getName());
+            statement.setString(2, user.getUsername());
+            statement.setString(3, user.getPassword());
+            statement.setString(4, user.getEmail());
+            statement.setString(5, previousUsername);
+            statement.setString(6, user.getRole());
+            statement.executeUpdate();
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not update user.", ex);
+        }
     }
 
     public User findUser(String username, String password, String role) {
