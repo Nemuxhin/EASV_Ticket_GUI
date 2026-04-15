@@ -109,9 +109,12 @@ public class CreateSpecialTicketView {
         RadioButton thisEventOnlyRadio = new RadioButton("This event only");
         thisEventOnlyRadio.setToggleGroup(appliesToGroup);
         thisEventOnlyRadio.setSelected(true);
+        thisEventOnlyRadio.getStyleClass().add("choice-radio");
 
         RadioButton allEventsRadio = new RadioButton("All events");
         allEventsRadio.setToggleGroup(appliesToGroup);
+        allEventsRadio.getStyleClass().add("choice-radio");
+
 
         VBox appliesBox = new VBox(10, thisEventOnlyRadio, allEventsRadio);
 
@@ -121,10 +124,14 @@ public class CreateSpecialTicketView {
         ));
         eventComboBox.setPromptText("Select an event");
         eventComboBox.setMaxWidth(Double.MAX_VALUE);
+        eventComboBox.getStyleClass().add("dashboard-select");
+
 
         DatePicker validUntilPicker = new DatePicker();
         validUntilPicker.setPromptText("dd/mm/yyyy");
         validUntilPicker.setMaxWidth(Double.MAX_VALUE);
+        validUntilPicker.getStyleClass().add("dashboard-picker");
+
         validUntilPicker.setDayCellFactory(picker -> new DateCell() {
             @Override
             public void updateItem(LocalDate item, boolean empty) {

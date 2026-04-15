@@ -1,7 +1,7 @@
 package easv.gui;
 
-import easv.controller.LoginController;
 import easv.be.User;
+import easv.controller.LoginController;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Group;
@@ -108,12 +108,11 @@ public class LoginView {
             mainView.setCurrentUser(user);
 
             if ("Admin".equals(role)) {
-                mainView.showAdminDashboard("Coordinators");
+                mainView.showAdminDashboard("Users");
             } else {
                 mainView.showCoordinatorDashboard("Events");
             }
         };
-
 
         loginBtn.setOnAction(e -> doLogin.run());
         passField.setOnAction(e -> doLogin.run());
@@ -145,7 +144,6 @@ public class LoginView {
     private String getUsernamePlaceholder() {
         return "Admin".equals(role) ? "admin" : "coordinator01";
     }
-
 
     private StackPane createPortalIcon() {
         StackPane circle = new StackPane();

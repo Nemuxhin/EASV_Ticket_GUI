@@ -20,6 +20,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
+import javafx.scene.control.DateCell;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -27,7 +28,9 @@ import javafx.scene.control.Separator;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextFormatter;
+import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -49,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.UnaryOperator;
+
 
 public class CoordinatorDashboardView {
     private static final DateTimeFormatter DISPLAY_DATE_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy 'at' HH:mm", Locale.ENGLISH);
@@ -154,6 +158,8 @@ public class CoordinatorDashboardView {
     private VBox createEventsContent() {
         VBox content = new VBox(20);
         content.setPadding(new Insets(30, 50, 30, 50));
+        content.setFillWidth(true);
+        content.setMaxWidth(Double.MAX_VALUE);
 
         Label title = new Label("Events");
         title.getStyleClass().add("page-title");
@@ -161,34 +167,33 @@ public class CoordinatorDashboardView {
         TextField searchBar = new TextField();
         searchBar.setPromptText("Search events by title or venue...");
         searchBar.getStyleClass().add("search-bar");
-        searchBar.setPrefWidth(520);
+        searchBar.setMaxWidth(Double.MAX_VALUE);
 
-        HBox toolbar = new HBox(12, searchBar);
+        HBox toolbar = new HBox(searchBar);
         toolbar.setAlignment(Pos.CENTER_LEFT);
+        toolbar.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(searchBar, Priority.ALWAYS);
 
-        FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
-        grid.setPrefWrapLength(1000);
+        GridPane grid = createTwoColumnGrid();
 
-        for (Event event : eventController.getEvents()) {
-            if (!matchesSearch(event, searchBar.getText())) {
-                continue;
-            }
-            grid.getChildren().add(createEventCard(event));
-        }
-
-        searchBar.textProperty().addListener((obs, oldValue, newValue) -> {
-            grid.getChildren().clear();
-            for (Event event : eventController.getEvents()) {
-                if (!matchesSearch(event, newValue)) {
+        Runnable render = () -> {
+            List<Event> filteredEvents = new ArrayList<>();
+            for (Event event : getVisibleCoordinatorEvents()) {
+                if (!matchesSearch(event, searchBar.getText())) {
                     continue;
                 }
-                grid.getChildren().add(createEventCard(event));
+                filteredEvents.add(event);
             }
-        });
+            renderCoordinatorEventCards(grid, filteredEvents);
+        };
+
+        searchBar.textProperty().addListener((obs, oldValue, newValue) -> render.run());
+        render.run();
 
         content.getChildren().addAll(title, toolbar, grid);
         return content;
     }
+
 
     private VBox createManageAccessContent() {
         VBox content = new VBox(18);
@@ -200,7 +205,7 @@ public class CoordinatorDashboardView {
         VBox list = new VBox(16);
 
         List<User> coordinators = userController.getUsersByRole("Event Coordinator");
-        for (Event event : eventController.getEvents()) {
+        for (Event event : getVisibleCoordinatorEvents()) {
             list.getChildren().add(createAccessCard(event, coordinators));
         }
 
@@ -382,6 +387,55 @@ public class CoordinatorDashboardView {
             list.getChildren().add(none);
         }
     }
+
+    private GridPane createTwoColumnGrid() {
+        GridPane grid = new GridPane();
+        grid.setHgap(20);
+        grid.setVgap(20);
+        grid.setMaxWidth(Double.MAX_VALUE);
+
+        ColumnConstraints first = new ColumnConstraints();
+        first.setPercentWidth(50);
+        first.setHgrow(Priority.ALWAYS);
+        first.setFillWidth(true);
+
+        ColumnConstraints second = new ColumnConstraints();
+        second.setPercentWidth(50);
+        second.setHgrow(Priority.ALWAYS);
+        second.setFillWidth(true);
+
+        grid.getColumnConstraints().setAll(first, second);
+        return grid;
+    }
+
+    private void renderCoordinatorEventCards(GridPane grid, List<Event> events) {
+        grid.getChildren().clear();
+
+        if (events.isEmpty()) {
+            Label empty = new Label("No events match your search.");
+            empty.getStyleClass().add("card-text");
+            grid.add(empty, 0, 0);
+            return;
+        }
+
+        int column = 0;
+        int row = 0;
+
+        for (Event event : events) {
+            VBox card = createEventCard(event);
+            GridPane.setHgrow(card, Priority.ALWAYS);
+            GridPane.setFillWidth(card, true);
+
+            grid.add(card, column, row);
+
+            column++;
+            if (column == 2) {
+                column = 0;
+                row++;
+            }
+        }
+    }
+
 
     private VBox createSpecialTicketsContent() {
         VBox content = new VBox();
@@ -693,6 +747,7 @@ public class CoordinatorDashboardView {
     private VBox createEventCard(Event event, boolean allowDelete) {
         VBox card = new VBox(10);
         card.getStyleClass().add("event-card");
+        card.setPrefWidth(360);
 
         HBox top = new HBox();
         Label titleLbl = new Label(displayText(event.getTitle()));
@@ -1255,7 +1310,7 @@ public class CoordinatorDashboardView {
                 normalizePrice(form.priceField.getText()),
                 form.capacityField.getText().trim(),
                 "Available",
-                new String[0]
+                getDefaultCoordinatorAssignments()
         );
 
         form.ticketTypePrices.put("Standard", normalizePrice(form.priceField.getText()));
@@ -1547,6 +1602,70 @@ public class CoordinatorDashboardView {
         return values;
     }
 
+    private void refreshStartTimeChoices(DatePicker startDatePicker, ComboBox<String> startTimeBox) {
+        List<String> filtered = new ArrayList<>();
+        LocalDate selectedDate = startDatePicker.getValue();
+        LocalTime now = LocalTime.now();
+
+        for (String value : generateTimes()) {
+            LocalTime candidate = LocalTime.parse(value, TIME_FORMATTER);
+
+            if (selectedDate != null && selectedDate.equals(LocalDate.now()) && !candidate.isAfter(now)) {
+                continue;
+            }
+
+            filtered.add(value);
+        }
+
+        setFilteredTimes(startTimeBox, filtered);
+    }
+
+    private void refreshEndTimeChoices(DatePicker startDatePicker,
+                                       ComboBox<String> startTimeBox,
+                                       DatePicker endDatePicker,
+                                       ComboBox<String> endTimeBox) {
+        List<String> filtered = new ArrayList<>();
+        LocalDate startDate = startDatePicker.getValue();
+        LocalDate endDate = endDatePicker.getValue();
+        LocalTime now = LocalTime.now();
+
+        LocalTime selectedStartTime = null;
+        if (startTimeBox.getValue() != null && !startTimeBox.getValue().isBlank()) {
+            selectedStartTime = LocalTime.parse(startTimeBox.getValue(), TIME_FORMATTER);
+        }
+
+        for (String value : generateTimes()) {
+            LocalTime candidate = LocalTime.parse(value, TIME_FORMATTER);
+
+            if (endDate != null && endDate.equals(LocalDate.now()) && !candidate.isAfter(now)) {
+                continue;
+            }
+
+            if (startDate != null
+                    && endDate != null
+                    && startDate.equals(endDate)
+                    && selectedStartTime != null
+                    && candidate.isBefore(selectedStartTime)) {
+                continue;
+            }
+
+            filtered.add(value);
+        }
+
+        setFilteredTimes(endTimeBox, filtered);
+    }
+
+    private void setFilteredTimes(ComboBox<String> timeBox, List<String> filteredTimes) {
+        String currentValue = timeBox.getValue();
+        timeBox.setItems(FXCollections.observableArrayList(filteredTimes));
+
+        if (currentValue != null && filteredTimes.contains(currentValue)) {
+            timeBox.setValue(currentValue);
+        } else {
+            timeBox.setValue(null);
+        }
+    }
+
     private TextFormatter<String> numericFormatter() {
         UnaryOperator<TextFormatter.Change> filter = change -> {
             String next = change.getControlNewText();
@@ -1588,26 +1707,36 @@ public class CoordinatorDashboardView {
         }
 
         private EventEditorForm(Event seedEvent) {
-            titleField.setPromptText("Enter event title");
-            locationField.setPromptText("Enter venue location");
-            locationGuidanceField.setPromptText("Optional directions or meeting point");
-            capacityField.setPromptText("e.g., 300");
-            priceField.setPromptText("e.g., 150 (or 0 for free)");
-            priceField.setTextFormatter(numericFormatter());
-
-            notesArea.setPromptText("Add event description or notes");
-            notesArea.setPrefRowCount(5);
-            notesArea.getStyleClass().add("input-field");
-
             titleField.getStyleClass().add("input-field");
             locationField.getStyleClass().add("input-field");
             locationGuidanceField.getStyleClass().add("input-field");
             capacityField.getStyleClass().add("input-field");
-            startDatePicker.getStyleClass().add("input-field");
-            startTimeBox.getStyleClass().add("input-field");
-            endDatePicker.getStyleClass().add("input-field");
-            endTimeBox.getStyleClass().add("input-field");
+            startDatePicker.getStyleClass().add("dashboard-picker");
+            startTimeBox.getStyleClass().add("dashboard-select");
+            endDatePicker.getStyleClass().add("dashboard-picker");
+            endTimeBox.getStyleClass().add("dashboard-select");
             priceField.getStyleClass().add("input-field");
+
+            startDatePicker.setDayCellFactory(picker -> new DateCell() {
+                @Override
+                public void updateItem(LocalDate item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setDisable(empty || item.isBefore(LocalDate.now()));
+                }
+            });
+
+            endDatePicker.setDayCellFactory(picker -> new DateCell() {
+                @Override
+                public void updateItem(LocalDate item, boolean empty) {
+                    super.updateItem(item, empty);
+
+                    LocalDate minimumDate = startDatePicker.getValue() == null
+                            ? LocalDate.now()
+                            : startDatePicker.getValue();
+
+                    setDisable(empty || item.isBefore(minimumDate));
+                }
+            });
 
             startTimeBox.setPromptText("--:--");
             startTimeBox.setMaxWidth(Double.MAX_VALUE);
@@ -1629,6 +1758,27 @@ public class CoordinatorDashboardView {
                     ticketTypePrices.putAll(configured);
                 }
             }
+
+            startDatePicker.valueProperty().addListener((obs, oldValue, newValue) -> {
+                if (newValue != null && endDatePicker.getValue() != null && endDatePicker.getValue().isBefore(newValue)) {
+                    endDatePicker.setValue(null);
+                }
+
+                refreshStartTimeChoices(startDatePicker, startTimeBox);
+                refreshEndTimeChoices(startDatePicker, startTimeBox, endDatePicker, endTimeBox);
+            });
+
+            startTimeBox.valueProperty().addListener((obs, oldValue, newValue) ->
+                    refreshEndTimeChoices(startDatePicker, startTimeBox, endDatePicker, endTimeBox)
+            );
+
+            endDatePicker.valueProperty().addListener((obs, oldValue, newValue) ->
+                    refreshEndTimeChoices(startDatePicker, startTimeBox, endDatePicker, endTimeBox)
+            );
+
+            refreshStartTimeChoices(startDatePicker, startTimeBox);
+            refreshEndTimeChoices(startDatePicker, startTimeBox, endDatePicker, endTimeBox);
+
 
             if (ticketTypePrices.isEmpty()) {
                 String defaultPrice = priceField.getText().isBlank() ? "0" : priceField.getText().trim();
@@ -1715,4 +1865,26 @@ public class CoordinatorDashboardView {
             container.setPadding(new Insets(14));
         }
     }
+    private List<Event> getVisibleCoordinatorEvents() {
+        return eventController.getEventsForUser(mainView.getCurrentUser());
+    }
+
+    private String[] getDefaultCoordinatorAssignments() {
+        User currentUser = mainView.getCurrentUser();
+        if (currentUser == null) {
+            return new String[0];
+        }
+
+        if (!"Event Coordinator".equalsIgnoreCase(currentUser.getRole())) {
+            return new String[0];
+        }
+
+        String currentName = currentUser.getName();
+        if (currentName == null || currentName.isBlank()) {
+            return new String[0];
+        }
+
+        return new String[]{currentName.trim()};
+    }
+
 }

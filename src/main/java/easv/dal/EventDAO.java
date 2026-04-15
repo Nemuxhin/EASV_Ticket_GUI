@@ -2,19 +2,19 @@ package easv.dal;
 
 import easv.be.Event;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.ArrayList;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 public class EventDAO {
@@ -29,6 +29,23 @@ public class EventDAO {
                 """;
 
         return getEventsByQuery(sql, "Could not load events.");
+    }
+
+    public List<Event> getEventsForCoordinator(String username) {
+        if (username == null || username.isBlank()) {
+            return new ArrayList<>();
+        }
+
+        String sql = """
+                SELECT DISTINCT e.EventID, e.Name, e.Location, e.Date, e.Notes, e.Status, e.EndDate, e.LocationGuidance, e.StandardPrice, e.Capacity
+                FROM Events e
+                JOIN UserEvent ue ON ue.EventID = e.EventID
+                JOIN Users u ON u.UserID = ue.UserID
+                WHERE u.Username = ?
+                ORDER BY e.Date
+                """;
+
+        return getEventsByQuery(sql, "Could not load coordinator events.", username.trim());
     }
 
     public List<Event> getArchivedEvents() {
@@ -209,16 +226,21 @@ public class EventDAO {
         );
     }
 
-    private List<Event> getEventsByQuery(String sql, String errorMessage) {
+    private List<Event> getEventsByQuery(String sql, String errorMessage, Object... parameters) {
         List<Event> events = new ArrayList<>();
 
         try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet resultSet = statement.executeQuery()) {
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            while (resultSet.next()) {
-                int eventId = resultSet.getInt("EventID");
-                events.add(mapEvent(resultSet, getCoordinators(connection, eventId)));
+            for (int i = 0; i < parameters.length; i++) {
+                statement.setObject(i + 1, parameters[i]);
+            }
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    int eventId = resultSet.getInt("EventID");
+                    events.add(mapEvent(resultSet, getCoordinators(connection, eventId)));
+                }
             }
         } catch (SQLException ex) {
             throw new RuntimeException(errorMessage, ex);
