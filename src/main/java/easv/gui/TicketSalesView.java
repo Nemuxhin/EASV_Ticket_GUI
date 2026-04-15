@@ -6,6 +6,9 @@ import easv.be.Ticket;
 import easv.be.TicketPurchase;
 import easv.controller.EventController;
 import easv.controller.TicketController;
+import easv.bll.TicketEmailService;
+import easv.bll.TicketPdfService;
+import java.nio.file.Path;
 import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleIntegerProperty;
 import javafx.beans.property.SimpleStringProperty;
@@ -34,17 +37,22 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+
 public class TicketSalesView {
     private final MainView mainView;
     private final EventController eventController;
     private final TicketController ticketController;
     private final Event event;
+    private final TicketPdfService ticketPdfService;
+    private final TicketEmailService ticketEmailService;
 
     public TicketSalesView(MainView mainView, EventController eventController, Event event) {
         this.mainView = mainView;
         this.eventController = eventController;
         this.ticketController = new TicketController();
         this.event = event;
+        this.ticketPdfService = new TicketPdfService();
+        this.ticketEmailService = new TicketEmailService();
     }
 
     public Parent getView() {
@@ -181,7 +189,7 @@ public class TicketSalesView {
         );
 
         Label helperText = styleLabel(
-                "Ticket types below show only the normal ticket types configured for this event.",
+                "Ticket types below include the event's default tickets and any special tickets created for this event.",
                 "card-text"
         );
 
@@ -309,6 +317,7 @@ public class TicketSalesView {
                 buildSuccessBody(firstTicket, purchase, totalPaid),
                 buildTicketCountStrip(tickets.size()),
                 buildTicketIdList(tickets),
+                buildDeliveryActions(tickets, purchase),
                 buildSuccessBackButton()
         );
 
@@ -319,6 +328,7 @@ public class TicketSalesView {
         scrollPane.setStyle("-fx-background-color: transparent; -fx-background: #F8F9FA;");
         mainView.setContent(scrollPane);
     }
+
 
     private VBox buildSuccessHeader(int ticketCount) {
         StackPane iconCircle = new StackPane();
@@ -359,17 +369,13 @@ public class TicketSalesView {
         Label eventDetailsTitle = new Label("Event Details");
         eventDetailsTitle.getStyleClass().add("success-section-title");
 
-        VBox eventInfo = new VBox(12);
-        eventInfo.getChildren().addAll(
+        VBox eventInfo = new VBox(
+                12,
                 createLabeledValue("Event Name", safeText(ticket.getEventTitle())),
                 createIconRow("📅", extractDate(ticket.getEventStartDateTime())),
                 createIconRow("🕒", extractTime(ticket.getEventStartDateTime())),
                 createIconRow("📍", safeText(ticket.getEventLocation()))
         );
-
-        if (ticket.getEventNotes() != null && !ticket.getEventNotes().isBlank()) {
-            eventInfo.getChildren().add(createLabeledValue("Notes", safeText(ticket.getEventNotes())));
-        }
 
         Label customerInfoTitle = new Label("Customer Information");
         customerInfoTitle.getStyleClass().add("success-section-title");
@@ -621,4 +627,42 @@ public class TicketSalesView {
         HBox.setHgrow(region, Priority.ALWAYS);
         return region;
     }
+
+    private HBox buildDeliveryActions(List<Ticket> tickets, TicketPurchase purchase) {
+        Button emailButton = new Button("Send Mail");
+        emailButton.getStyleClass().add("primary-btn");
+        emailButton.setOnAction(e -> sendTicketsByEmail(tickets, purchase));
+
+        Button printButton = new Button("Print PDF");
+        printButton.getStyleClass().add("secondary-btn");
+        printButton.setOnAction(e -> printTicketsPdf(tickets));
+
+        HBox actions = new HBox(12, emailButton, printButton);
+        actions.setAlignment(Pos.CENTER);
+        return actions;
+    }
+
+    private void sendTicketsByEmail(List<Ticket> tickets, TicketPurchase purchase) {
+        try {
+            ticketEmailService.sendTickets(
+                    purchase.getCustomerName(),
+                    purchase.getCustomerEmail(),
+                    tickets
+            );
+            AlertHelper.showInfo("Email Sent", "The ticket PDF was sent successfully.");
+        } catch (Exception ex) {
+            AlertHelper.showError("Email Failed", ex.getMessage());
+        }
+    }
+
+    private void printTicketsPdf(List<Ticket> tickets) {
+        try {
+            Path pdfPath = ticketPdfService.createTempPdf(tickets);
+            ticketPdfService.printPdf(pdfPath);
+            AlertHelper.showInfo("PDF Ready", "The PDF was sent to print or opened in your default PDF viewer.");
+        } catch (Exception ex) {
+            AlertHelper.showError("Print Failed", ex.getMessage());
+        }
+    }
+
 }

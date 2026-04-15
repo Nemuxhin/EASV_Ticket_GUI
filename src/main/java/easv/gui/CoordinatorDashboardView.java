@@ -275,6 +275,12 @@ public class CoordinatorDashboardView {
         sellBtn.setMaxWidth(Double.MAX_VALUE);
         sellBtn.setOnAction(e -> mainView.showTicketSales(event));
 
+        Button scanBtn = new Button("Scan Tickets");
+        scanBtn.getStyleClass().add("secondary-btn");
+        scanBtn.setMaxWidth(Double.MAX_VALUE);
+        scanBtn.setOnAction(e -> mainView.showTicketScanner(event));
+
+
         Button directionsBtn = new Button("Directions");
         directionsBtn.getStyleClass().add("secondary-btn");
         directionsBtn.setMaxWidth(Double.MAX_VALUE);
@@ -302,6 +308,7 @@ public class CoordinatorDashboardView {
                 new Separator(),
                 priceLbl,
                 sellBtn,
+                scanBtn,
                 directionsBtn,
                 editBtn,
                 deleteBtn

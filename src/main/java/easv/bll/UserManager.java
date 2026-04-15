@@ -47,12 +47,16 @@ public class UserManager {
     }
 
     public void updateUser(User user, String name, String email, String username, String password) {
-        String previousUsername = user.getUsername();
         user.setName(name);
         user.setEmail(email);
         user.setUsername(username);
         user.setPassword(password);
 
-        userDAO.updateUser(user, previousUsername);
+        userDAO.updateUser(user);
     }
+
+    public User authenticate(String username, String password, String role) {
+        return userDAO.findUser(username, password, role);
+    }
+
 }
