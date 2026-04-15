@@ -1,13 +1,10 @@
+
 package easv.gui;
 
 import easv.be.Event;
+import easv.be.SoldTicketRecord;
 import easv.be.Ticket;
 import easv.be.User;
-import easv.bll.MailClientService;
-import easv.bll.QrScannerService;
-import easv.bll.TicketPdfService;
-import easv.bll.TicketRedemptionService;
-import easv.bll.TicketScanResult;
 import easv.controller.EventController;
 import easv.controller.TicketController;
 import easv.controller.UserController;
@@ -31,11 +28,9 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import javafx.stage.FileChooser;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
-import java.io.File;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -59,10 +54,6 @@ public class CoordinatorDashboardView {
     private final UserController userController;
     private final TicketController ticketController;
     private final String activeTab;
-    private final QrScannerService qrScannerService;
-    private final TicketRedemptionService ticketRedemptionService;
-    private final TicketPdfService ticketPdfService;
-    private final MailClientService mailClientService;
 
     public CoordinatorDashboardView(MainView mainView, EventController eventController,
                                     UserController userController, String activeTab) {
@@ -71,10 +62,6 @@ public class CoordinatorDashboardView {
         this.userController = userController;
         this.ticketController = new TicketController();
         this.activeTab = activeTab;
-        this.qrScannerService = new QrScannerService();
-        this.ticketRedemptionService = new TicketRedemptionService();
-        this.ticketPdfService = new TicketPdfService();
-        this.mailClientService = new MailClientService();
     }
 
     public Parent getView() {
@@ -85,6 +72,7 @@ public class CoordinatorDashboardView {
         VBox content = switch (activeTab) {
             case "Manage Access" -> createManageAccessContent();
             case "Sold Tickets" -> createSoldTicketsContent();
+            case "Special Tickets" -> createSpecialTicketsContent();
             case "Edit Event" -> createEditEventContent();
             case "Create Event" -> createCreateEventContent();
             default -> createEventsContent();
@@ -109,14 +97,26 @@ public class CoordinatorDashboardView {
 
         Button eventsBtn = createMenuBtn(
                 "\uD83D\uDCC5 Events",
-                "Events".equals(activeTab) || "Create Event".equals(activeTab) || "Edit Event".equals(activeTab),
+                "Events".equals(activeTab) || "Edit Event".equals(activeTab),
                 e -> mainView.showCoordinatorDashboard("Events")
+        );
+
+        Button createEventBtn = createMenuBtn(
+                "+ Create Event",
+                "Create Event".equals(activeTab),
+                e -> mainView.showCoordinatorDashboard("Create Event")
         );
 
         Button accessBtn = createMenuBtn(
                 "\uD83D\uDC65 Manage Access",
                 "Manage Access".equals(activeTab),
                 e -> mainView.showCoordinatorDashboard("Manage Access")
+        );
+
+        Button specialTicketsBtn = createMenuBtn(
+                "\u2726 Special Tickets",
+                "Special Tickets".equals(activeTab),
+                e -> mainView.showCoordinatorDashboard("Special Tickets")
         );
 
         Button soldBtn = createMenuBtn(
@@ -133,29 +133,8 @@ public class CoordinatorDashboardView {
         logoutBtn.setMaxWidth(Double.MAX_VALUE);
         logoutBtn.setOnAction(e -> mainView.showPortalSelection());
 
-        sidebar.getChildren().addAll(logo, eventsBtn, accessBtn, soldBtn, spacer, logoutBtn);
+        sidebar.getChildren().addAll(logo, eventsBtn, createEventBtn, accessBtn, specialTicketsBtn, soldBtn, spacer, logoutBtn);
         return sidebar;
-    }
-
-    private HBox createContentTabs(String selectedTab) {
-        HBox tabs = new HBox(10);
-        tabs.setAlignment(Pos.CENTER_LEFT);
-
-        tabs.getChildren().addAll(
-                createTopTabButton("Events", selectedTab),
-                createTopTabButton("Manage Access", selectedTab),
-                createTopTabButton("Sold Tickets", selectedTab)
-        );
-
-        return tabs;
-    }
-
-    private Button createTopTabButton(String tabName, String selectedTab) {
-        boolean selected = tabName.equals(selectedTab);
-        Button button = new Button(tabName);
-        button.getStyleClass().add(selected ? "tab-btn-active" : "tab-btn");
-        button.setOnAction(e -> mainView.showCoordinatorDashboard(tabName));
-        return button;
     }
 
     private VBox createEventsContent() {
@@ -170,17 +149,7 @@ public class CoordinatorDashboardView {
         searchBar.getStyleClass().add("search-bar");
         searchBar.setPrefWidth(520);
 
-        Button specialTicketsBtn = new Button("\u2726 Special Tickets");
-        specialTicketsBtn.getStyleClass().add("secondary-btn");
-        specialTicketsBtn.setOnAction(e ->
-                mainView.setContent(new CreateSpecialTicketView(mainView).getView())
-        );
-
-        Button createBtn = new Button("+ Create Event");
-        createBtn.getStyleClass().add("primary-btn");
-        createBtn.setOnAction(e -> mainView.showCoordinatorDashboard("Create Event"));
-
-        HBox toolbar = new HBox(12, searchBar, specialTicketsBtn, createBtn);
+        HBox toolbar = new HBox(12, searchBar);
         toolbar.setAlignment(Pos.CENTER_LEFT);
 
         FlowPane grid = new FlowPane(Orientation.HORIZONTAL, 20, 20);
@@ -203,7 +172,7 @@ public class CoordinatorDashboardView {
             }
         });
 
-        content.getChildren().addAll(createContentTabs("Events"), title, toolbar, grid);
+        content.getChildren().addAll(title, toolbar, grid);
         return content;
     }
 
@@ -221,68 +190,36 @@ public class CoordinatorDashboardView {
             list.getChildren().add(createAccessCard(event, coordinators));
         }
 
-        content.getChildren().addAll(createContentTabs("Manage Access"), title, list);
+        content.getChildren().addAll(title, list);
         return content;
     }
-
     private VBox createSoldTicketsContent() {
         VBox content = new VBox(20);
         content.setPadding(new Insets(30, 50, 30, 50));
 
-        List<Ticket> soldTickets = getSoldEventTickets();
+        List<SoldTicketRecord> soldTickets = ticketController.getSoldTickets();
+        int usedCount = 0;
+        for (SoldTicketRecord ticket : soldTickets) {
+            if (ticket.isUsed()) {
+                usedCount++;
+            }
+        }
+        int unusedCount = soldTickets.size() - usedCount;
 
         Label title = new Label("Sold Tickets");
         title.getStyleClass().add("page-title");
 
-        Label count = new Label();
+        Label count = new Label("\uD83C\uDFAB " + soldTickets.size() + (soldTickets.size() == 1 ? " ticket sold" : " tickets sold"));
         count.getStyleClass().add("card-text");
 
         HBox top = new HBox(title, grow(), count);
         top.setAlignment(Pos.CENTER_LEFT);
 
-        Label statusSummary = new Label();
+        Label statusSummary = new Label("Used: " + usedCount + "   |   Not Used: " + unusedCount);
         statusSummary.getStyleClass().add("card-text");
 
-        updateSoldTicketSummary(count, statusSummary, soldTickets);
-
-        Label redeemTitle = new Label("Redeem Ticket");
-        redeemTitle.getStyleClass().add("card-title");
-
-        Label redeemHelp = new Label("Scan a QR image, scan a ticket PDF, paste a token, or search by ticket ID below and redeem directly from the matching ticket.");
-        redeemHelp.getStyleClass().add("card-text");
-        redeemHelp.setWrapText(true);
-
-        TextField tokenField = new TextField();
-        tokenField.setPromptText("Scan or paste the secure ticket token here");
-        tokenField.getStyleClass().add("input-field");
-
-        Label redeemStatus = new Label("Ready");
-        redeemStatus.getStyleClass().add("status-avail");
-
-        TextArea redeemResultArea = new TextArea("No ticket scanned yet.");
-        redeemResultArea.setEditable(false);
-        redeemResultArea.setWrapText(true);
-        redeemResultArea.setPrefRowCount(8);
-        redeemResultArea.getStyleClass().add("input-field");
-
-        Button chooseImageButton = new Button("Choose QR Image");
-        chooseImageButton.getStyleClass().add("secondary-btn");
-
-        Button choosePdfButton = new Button("Choose Ticket PDF");
-        choosePdfButton.getStyleClass().add("secondary-btn");
-
-        Button redeemButton = new Button("Redeem Token");
-        redeemButton.getStyleClass().add("primary-btn");
-
-        Button clearButton = new Button("Clear");
-        clearButton.getStyleClass().add("secondary-btn");
-        clearButton.setOnAction(e -> {
-            tokenField.clear();
-            updateRedeemFeedback(redeemStatus, redeemResultArea, true, "Ready", "No ticket scanned yet.");
-        });
-
         TextField searchField = new TextField();
-        searchField.setPromptText("Search by ticket ID, email, customer, event, or ticket type...");
+        searchField.setPromptText("Search by public code, email, customer, event, or ticket type...");
         searchField.getStyleClass().add("search-bar");
         searchField.setPrefWidth(580);
 
@@ -301,17 +238,21 @@ public class CoordinatorDashboardView {
             }
 
             searchField.setText(email);
+            boolean found = false;
+            for (SoldTicketRecord ticket : soldTickets) {
+                if (email.equalsIgnoreCase(ticket.getCustomerEmail())) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                AlertHelper.showInfo("No Match", "No sold tickets were found for that email.");
+            }
         });
 
         HBox searchRow = new HBox(10, searchField, onsiteEmailField, emailLookupBtn);
         searchRow.setAlignment(Pos.CENTER_LEFT);
-
-        HBox redeemActions = new HBox(10, chooseImageButton, choosePdfButton, redeemButton, clearButton);
-        redeemActions.setAlignment(Pos.CENTER_LEFT);
-
-        VBox redeemCard = new VBox(12, redeemTitle, redeemHelp, tokenField, redeemActions, redeemStatus, redeemResultArea);
-        redeemCard.getStyleClass().addAll("event-card", "event-list-card");
-        redeemCard.setPadding(new Insets(20));
 
         VBox bodyCard = new VBox(14);
         bodyCard.getStyleClass().addAll("event-card", "event-list-card");
@@ -320,9 +261,7 @@ public class CoordinatorDashboardView {
         VBox list = new VBox(10);
         bodyCard.getChildren().add(list);
 
-        Runnable[] renderHolder = new Runnable[1];
-
-        renderHolder[0] = () -> {
+        Runnable render = () -> {
             list.getChildren().clear();
             String query = searchField.getText();
 
@@ -337,7 +276,7 @@ public class CoordinatorDashboardView {
                 Label emptyTitle = new Label("No tickets sold yet");
                 emptyTitle.getStyleClass().add("card-title");
 
-                Label emptyText = new Label("Tickets sold through the Events section will appear here.");
+                Label emptyText = new Label("Tickets sold through the Events section will appear here");
                 emptyText.getStyleClass().add("card-text");
 
                 emptyBox.getChildren().addAll(icon, emptyTitle, emptyText);
@@ -346,21 +285,12 @@ public class CoordinatorDashboardView {
             }
 
             int matches = 0;
-            for (Ticket ticket : soldTickets) {
+            for (SoldTicketRecord ticket : soldTickets) {
                 if (!matchesTicketSearch(ticket, query)) {
                     continue;
                 }
-
                 matches++;
-                list.getChildren().add(createSoldTicketRow(
-                        ticket,
-                        redeemStatus,
-                        redeemResultArea,
-                        count,
-                        statusSummary,
-                        soldTickets,
-                        renderHolder[0]
-                ));
+                list.getChildren().add(createSoldTicketRow(ticket));
             }
 
             if (matches == 0) {
@@ -370,76 +300,38 @@ public class CoordinatorDashboardView {
             }
         };
 
-        chooseImageButton.setOnAction(e -> chooseTicketImageAndRedeem(
-                tokenField,
-                redeemStatus,
-                redeemResultArea,
-                count,
-                statusSummary,
-                soldTickets,
-                renderHolder[0]
-        ));
+        searchField.textProperty().addListener((obs, oldValue, newValue) -> render.run());
+        render.run();
 
-        choosePdfButton.setOnAction(e -> chooseTicketPdfAndRedeem(
-                tokenField,
-                redeemStatus,
-                redeemResultArea,
-                count,
-                statusSummary,
-                soldTickets,
-                renderHolder[0]
-        ));
-
-        redeemButton.setOnAction(e -> redeemTicketFromInput(
-                tokenField,
-                redeemStatus,
-                redeemResultArea,
-                count,
-                statusSummary,
-                soldTickets,
-                renderHolder[0]
-        ));
-
-        tokenField.setOnAction(e -> redeemTicketFromInput(
-                tokenField,
-                redeemStatus,
-                redeemResultArea,
-                count,
-                statusSummary,
-                soldTickets,
-                renderHolder[0]
-        ));
-
-        searchField.textProperty().addListener((obs, oldValue, newValue) -> renderHolder[0].run());
-        renderHolder[0].run();
-
-        content.getChildren().addAll(
-                createContentTabs("Sold Tickets"),
-                top,
-                statusSummary,
-                redeemCard,
-                searchRow,
-                bodyCard
-        );
-
+        content.getChildren().addAll(top, statusSummary, searchRow, bodyCard);
         return content;
     }
 
-    private VBox createSoldTicketRow(Ticket ticket,
-                                     Label redeemStatus,
-                                     TextArea redeemResultArea,
-                                     Label count,
-                                     Label statusSummary,
-                                     List<Ticket> soldTickets,
-                                     Runnable refreshList) {
-        VBox row = new VBox(10);
+    private VBox createSpecialTicketsContent() {
+        VBox content = new VBox();
+        content.getChildren().add(new CreateSpecialTicketView(mainView).getView());
+        return content;
+    }
+
+    private VBox createSoldTicketRow(SoldTicketRecord ticket) {
+        VBox row = new VBox(8);
         row.getStyleClass().addAll("event-card", "event-list-card");
         row.setPadding(new Insets(14));
 
-        String customerName = ticket.hasCustomer() ? displayText(ticket.getCustomer().getName()) : "-";
-        String customerEmail = ticket.hasCustomer() ? displayText(ticket.getCustomer().getEmail()) : "-";
+        String customerName = safeText(ticket.getCustomerName());
+        String customerEmail = safeText(ticket.getCustomerEmail());
+        Ticket originalTicket = ticketController.findByToken(ticket.getPublicCode());
+        boolean isSpecialTicket = (originalTicket != null && originalTicket.isSpecialTicket())
+                || (customerName.isBlank() && customerEmail.isBlank());
+        String ticketLabel = isSpecialTicket ? "Special Ticket" : "Ticket Type";
+        String detailsText = isSpecialTicket
+                ? ticketLabel + ": " + safeText(ticket.getTicketType()) +
+                    "  |  Price: " + safeText(ticket.getPrice())
+                : ticketLabel + ": " + safeText(ticket.getTicketType()) +
+                    "  |  Price: " + safeText(ticket.getPrice()) +
+                    "  |  Customer: " + customerName + " (" + customerEmail + ")";
 
-        Label title = new Label(displayText(ticket.getEventTitle()));
+        Label title = new Label(ticket.getEventName() == null || ticket.getEventName().isBlank() ? "Unknown Event" : ticket.getEventName());
         title.getStyleClass().add("card-title");
 
         Label status = new Label(ticket.isUsed() ? "Used" : "Not Used");
@@ -448,186 +340,72 @@ public class CoordinatorDashboardView {
         HBox top = new HBox(10, title, grow(), status);
         top.setAlignment(Pos.CENTER_LEFT);
 
-        Label details = new Label(
-                "Type: " + displayText(ticket.getTicketType()) +
-                        "  |  Price: " + displayText(ticket.getPrice())
-        );
+        Label details = new Label(detailsText);
         details.getStyleClass().add("card-text");
 
-        Label customer = new Label("Customer: " + customerName + " (" + customerEmail + ")");
-        customer.getStyleClass().add("card-text");
-
-        Label id = new Label("Ticket ID: " + displayText(ticket.getTicketId()));
+        Label id = new Label("Public Code: " + safeText(ticket.getPublicCode()));
         id.getStyleClass().add("notes-head");
 
-        HBox actions = buildSoldTicketActions(
-                ticket,
-                redeemStatus,
-                redeemResultArea,
-                count,
-                statusSummary,
-                soldTickets,
-                refreshList
-        );
+        Button toggleUsageBtn = new Button(ticket.isUsed() ? "Mark As Not Used" : "Mark As Used");
+        toggleUsageBtn.getStyleClass().add("secondary-btn");
+        toggleUsageBtn.setOnAction(e -> {
+            boolean nextUsed = !ticket.isUsed();
+            boolean changed = ticketController.setSoldTicketUsedState(ticket.getPublicCode(), nextUsed);
+            if (!changed) {
+                AlertHelper.showError("Update Failed", "The ticket status could not be updated.");
+                return;
+            }
+            mainView.showCoordinatorDashboard("Sold Tickets");
+        });
 
-        row.getChildren().addAll(top, details, customer, id, actions);
+        row.getChildren().addAll(top, details, id, toggleUsageBtn);
         return row;
     }
 
-    private HBox buildSoldTicketActions(Ticket ticket,
-                                        Label redeemStatus,
-                                        TextArea redeemResultArea,
-                                        Label count,
-                                        Label statusSummary,
-                                        List<Ticket> soldTickets,
-                                        Runnable refreshList) {
-        Button printPdfButton = new Button("Print PDF");
-        printPdfButton.getStyleClass().add("secondary-btn");
-        printPdfButton.setOnAction(e -> printSoldTicketPdf(ticket));
-
-        Button emailButton = new Button("Send Email");
-        emailButton.getStyleClass().add("secondary-btn");
-        emailButton.setDisable(!ticket.hasCustomer() || ticket.getCustomer().getEmail() == null || ticket.getCustomer().getEmail().isBlank());
-        emailButton.setOnAction(e -> sendSoldTicketByEmail(ticket));
-
-        boolean canRedeem = ticket.isActive() && !ticket.isUsed() && ticket.getSecureToken() != null && !ticket.getSecureToken().isBlank();
-
-        Button redeemButton = new Button(ticket.isUsed() ? "Already Used" : "Redeem Ticket");
-        redeemButton.getStyleClass().add(canRedeem ? "primary-btn" : "secondary-btn");
-        redeemButton.setDisable(!canRedeem);
-        redeemButton.setOnAction(e -> redeemSoldTicket(
-                ticket,
-                redeemStatus,
-                redeemResultArea,
-                count,
-                statusSummary,
-                soldTickets,
-                refreshList
-        ));
-
-        HBox actions = new HBox(10, printPdfButton, emailButton, redeemButton);
-        actions.setAlignment(Pos.CENTER_LEFT);
-        return actions;
-    }
-
-    private void redeemSoldTicket(Ticket ticket,
-                                  Label redeemStatus,
-                                  TextArea redeemResultArea,
-                                  Label count,
-                                  Label statusSummary,
-                                  List<Ticket> soldTickets,
-                                  Runnable refreshList) {
-        String secureToken = ticket.getSecureToken();
-        TicketScanResult result = ticketRedemptionService.redeem(mainView.getCurrentUser(), null, secureToken);
-
-        updateRedeemFeedback(
-                redeemStatus,
-                redeemResultArea,
-                result.success(),
-                result.title(),
-                buildRedeemMessage(result)
-        );
-
-        if (result.success()) {
-            ticket.setUsed(true);
-            updateSoldTicketSummary(count, statusSummary, soldTickets);
-            refreshList.run();
-        }
-    }
-
-    private void printSoldTicketPdf(Ticket ticket) {
-        try {
-            ticketPdfService.printTicketPdf(ticket);
-        } catch (Exception ex) {
-            AlertHelper.showError("Print Failed", ex.getMessage());
-        }
-    }
-
-    private void sendSoldTicketByEmail(Ticket ticket) {
-        if (!ticket.hasCustomer() || ticket.getCustomer().getEmail() == null || ticket.getCustomer().getEmail().isBlank()) {
-            AlertHelper.showError("Email Failed", "This ticket does not have a customer email address.");
-            return;
-        }
-
-        try {
-            ticketPdfService.openTicketPdf(ticket);
-
-            String subject = "Your ticket for " + displayText(ticket.getEventTitle());
-            String body = buildSoldTicketEmailBody(ticket);
-
-            mailClientService.openDraft(ticket.getCustomer().getEmail(), subject, body);
-        } catch (Exception ex) {
-            AlertHelper.showError("Email Failed", ex.getMessage());
-        }
-    }
-
-    private String buildSoldTicketEmailBody(Ticket ticket) {
-        String customerName = ticket.hasCustomer() ? displayText(ticket.getCustomer().getName()) : "there";
-
-        StringBuilder builder = new StringBuilder();
-        builder.append("Hi ").append(customerName).append(",\n\n");
-        builder.append("Your ticket for ").append(displayText(ticket.getEventTitle())).append(" is ready.\n");
-        builder.append("Ticket ID: ").append(displayText(ticket.getTicketId())).append("\n");
-        builder.append("Ticket type: ").append(displayText(ticket.getTicketType())).append("\n\n");
-        builder.append("Please attach the opened PDF file and send this email.\n\n");
-        builder.append("Best regards,\nEASV Tickets");
-
-        return builder.toString();
-    }
-
     private VBox createEventCard(Event event) {
+        return createEventCard(event, true);
+    }
+
+    private VBox createEventCard(Event event, boolean allowDelete) {
         VBox card = new VBox(10);
         card.getStyleClass().add("event-card");
 
-        int soldCount = getSoldCountForEvent(event);
-        int capacity = getEventCapacityValue(event);
-        int remaining = getRemainingCapacity(event);
-        String liveStatus = getLiveEventStatus(event);
-        boolean soldOut = "Sold Out".equalsIgnoreCase(liveStatus);
-
         HBox top = new HBox();
-        Label titleLbl = new Label(displayText(event.getTitle()));
+        Label titleLbl = new Label(event.getTitle());
         titleLbl.getStyleClass().add("card-title");
 
-        Label statusLbl = new Label(liveStatus);
-        statusLbl.getStyleClass().add(
-                "Available".equalsIgnoreCase(liveStatus) ? "status-avail" : "status-fast"
-        );
+        String status = ticketController.getEventStatus(event);
+        Label statusLbl = new Label(status);
+        statusLbl.getStyleClass().add(statusStyleClass(status));
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         top.getChildren().addAll(titleLbl, spacer, statusLbl);
 
         VBox scheduleBox = new VBox(6);
-        Label startLbl = new Label("\uD83D\uDD52 " + displayText(event.getStartDateTime()));
+        Label startLbl = new Label("\uD83D\uDD52 " + event.getStartDateTime());
         startLbl.getStyleClass().add("card-text");
         scheduleBox.getChildren().add(startLbl);
 
         VBox locationBox = new VBox(6);
-        Label locationLbl = new Label("\uD83D\uDCCD " + displayText(event.getLocation()));
+        Label locationLbl = new Label("\uD83D\uDCCD " + event.getLocation());
         locationLbl.getStyleClass().add("card-text");
         locationBox.getChildren().add(locationLbl);
 
         Label notesHead = new Label("Notes");
         notesHead.getStyleClass().add("notes-head");
 
-        Label notesLbl = new Label(displayText(event.getNotes()));
+        Label notesLbl = new Label(event.getNotes());
         notesLbl.getStyleClass().add("card-text");
         notesLbl.setWrapText(true);
 
-        Label capacityLbl = new Label(buildCapacitySummary(soldCount, capacity, remaining));
-        capacityLbl.getStyleClass().add("card-text");
-
-        Label priceLbl = new Label(displayText(event.getPrice()));
+        Label priceLbl = new Label(event.getPrice());
         priceLbl.getStyleClass().add("price-text");
 
-        Button sellBtn = new Button(soldOut ? "Sold Out" : "Sell Ticket");
-        sellBtn.getStyleClass().add(soldOut ? "secondary-btn" : "primary-btn");
+        Button sellBtn = new Button("Sell Ticket");
+        sellBtn.getStyleClass().add("primary-btn");
         sellBtn.setMaxWidth(Double.MAX_VALUE);
-        sellBtn.setDisable(soldOut);
-        if (!soldOut) {
-            sellBtn.setOnAction(e -> mainView.showTicketSales(event));
-        }
+        sellBtn.setOnAction(e -> mainView.showTicketSales(event));
 
         Button directionsBtn = new Button("Directions");
         directionsBtn.getStyleClass().add("secondary-btn");
@@ -639,124 +417,40 @@ public class CoordinatorDashboardView {
         editBtn.setMaxWidth(Double.MAX_VALUE);
         editBtn.setOnAction(e -> mainView.showEditEvent(event));
 
-        Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
-        deleteBtn.getStyleClass().add("danger-btn");
-        deleteBtn.setMaxWidth(Double.MAX_VALUE);
-        deleteBtn.setOnAction(e -> {
-            eventController.deleteEvent(event);
-            ticketController.removeConfiguredTicketTypes(event);
-            mainView.showCoordinatorDashboard("Events");
-        });
-
         card.getChildren().addAll(
                 top,
                 scheduleBox,
                 locationBox,
                 notesHead,
                 notesLbl,
-                capacityLbl,
                 new Separator(),
                 priceLbl,
                 sellBtn,
                 directionsBtn,
-                editBtn,
-                deleteBtn
+                editBtn
         );
 
+        if (allowDelete) {
+            Button deleteBtn = new Button("\uD83D\uDDD1 Delete Event");
+            deleteBtn.getStyleClass().add("danger-btn");
+            deleteBtn.setMaxWidth(Double.MAX_VALUE);
+            deleteBtn.setOnAction(e -> {
+                boolean confirmed = AlertHelper.showConfirmation(
+                        "Delete Event",
+                        "Are you sure you want to delete the event?"
+                );
+                if (!confirmed) {
+                    return;
+                }
+
+                eventController.deleteEvent(event);
+                mainView.showCoordinatorDashboard("Events");
+            });
+
+            card.getChildren().add(deleteBtn);
+        }
+
         return card;
-    }
-
-    private String getLiveEventStatus(Event event) {
-        int capacity = getEventCapacityValue(event);
-        if (capacity == Integer.MAX_VALUE) {
-            return "Available";
-        }
-
-        int remaining = getRemainingCapacity(event);
-        if (remaining <= 0) {
-            return "Sold Out";
-        }
-
-        int sellingFastThreshold = Math.max(10, (int) Math.ceil(capacity * 0.20));
-        if (remaining <= sellingFastThreshold) {
-            return "Selling Fast";
-        }
-
-        return "Available";
-    }
-
-    private int getRemainingCapacity(Event event) {
-        int capacity = getEventCapacityValue(event);
-        if (capacity == Integer.MAX_VALUE) {
-            return Integer.MAX_VALUE;
-        }
-
-        return Math.max(capacity - getSoldCountForEvent(event), 0);
-    }
-
-    private int getSoldCountForEvent(Event event) {
-        int count = 0;
-
-        for (Ticket ticket : ticketController.getAllTickets()) {
-            if (ticket == null || ticket.isSpecialTicket()) {
-                continue;
-            }
-
-            if (matchesTicketToEvent(ticket, event)) {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    private int getEventCapacityValue(Event event) {
-        if (event == null || event.getCapacity() == null) {
-            return Integer.MAX_VALUE;
-        }
-
-        String rawCapacity = event.getCapacity().trim();
-        if (rawCapacity.isBlank()) {
-            return Integer.MAX_VALUE;
-        }
-
-        String digitsOnly = rawCapacity.replaceAll("[^0-9]", "");
-        if (digitsOnly.isBlank()) {
-            return Integer.MAX_VALUE;
-        }
-
-        try {
-            int parsed = Integer.parseInt(digitsOnly);
-            return parsed > 0 ? parsed : Integer.MAX_VALUE;
-        } catch (NumberFormatException ex) {
-            return Integer.MAX_VALUE;
-        }
-    }
-
-    private String buildCapacitySummary(int soldCount, int capacity, int remaining) {
-        if (capacity == Integer.MAX_VALUE) {
-            return soldCount == 1 ? "1 ticket sold" : soldCount + " tickets sold";
-        }
-
-        if (remaining <= 0) {
-            return "Capacity reached: " + soldCount + " / " + capacity + " sold";
-        }
-
-        return "Sold: " + soldCount + " / " + capacity + "  |  Left: " + remaining;
-    }
-
-    private boolean matchesTicketToEvent(Ticket ticket, Event event) {
-        if (ticket == null || event == null) {
-            return false;
-        }
-
-        return normalizeText(ticket.getEventTitle()).equalsIgnoreCase(normalizeText(event.getTitle()))
-                && normalizeText(ticket.getEventLocation()).equalsIgnoreCase(normalizeText(event.getLocation()))
-                && normalizeText(ticket.getEventStartDateTime()).equalsIgnoreCase(normalizeText(event.getStartDateTime()));
-    }
-
-    private String normalizeText(String value) {
-        return value == null ? "" : value.trim();
     }
 
     private VBox createAccessCard(Event event, List<User> coordinators) {
@@ -818,7 +512,6 @@ public class CoordinatorDashboardView {
         card.getChildren().addAll(title, date, assigned, pills);
         return card;
     }
-
     private Button createMenuBtn(String text, boolean isActive,
                                  javafx.event.EventHandler<javafx.event.ActionEvent> action) {
         Button btn = new Button(text);
@@ -857,28 +550,27 @@ public class CoordinatorDashboardView {
 
         EventEditorForm form = new EventEditorForm();
 
-        Button configureTypesBtn = new Button("\uD83C\uDFAB Configure Multiple Ticket Types");
+        Label ticketTypesTitle = new Label("Ticket Types");
+        ticketTypesTitle.getStyleClass().add("card-title");
+
+        Label configureHint = new Label("Add different ticket types like VIP or Student with custom pricing.");
+        configureHint.getStyleClass().add("card-text");
+
+        Label ticketTypesSummary = buildTicketTypeSummaryLabel(form.ticketTypePrices);
+
+        Button configureTypesBtn = new Button("\uD83C\uDFAB Add / Edit Ticket Types");
         configureTypesBtn.getStyleClass().add("primary-btn");
         configureTypesBtn.setOnAction(e -> {
-            LinkedHashMap<String, String> updated = showTicketTypeConfigurationDialog(form.ticketTypePrices, configureTypesBtn.getScene());
+            LinkedHashMap<String, String> updated = showTicketTypeConfigurationDialog(form.ticketTypePrices, configureTypesBtn.getScene(), form, null);
             if (updated != null) {
                 form.ticketTypePrices = updated;
+                ticketTypesSummary.setText(buildTicketTypeSummaryText(updated));
                 String standardPrice = updated.get("Standard");
                 if (standardPrice != null) {
                     form.priceField.setText(toEditablePrice(standardPrice));
                 }
             }
         });
-
-        Label configureHint = new Label("Add different ticket types (VIP, Student, etc.) with custom pricing");
-        configureHint.getStyleClass().add("card-text");
-
-        Button specialTicketsBtn = new Button("\uD83C\uDFAB Create Special Tickets");
-        specialTicketsBtn.getStyleClass().add("primary-btn");
-        specialTicketsBtn.setOnAction(e -> mainView.setContent(new CreateSpecialTicketView(mainView).getView()));
-
-        Label specialHint = new Label("Generate custom special tickets with unique benefits (e.g., free drinks, VIP passes)");
-        specialHint.getStyleClass().add("card-text");
 
         Button createBtn = new Button("Create Event");
         createBtn.getStyleClass().add("primary-btn");
@@ -893,15 +585,17 @@ public class CoordinatorDashboardView {
         card.getChildren().addAll(
                 top,
                 form.titleBox,
-                form.dateTimeRow,
+                form.startDateTimeRow,
+                form.endDateTimeRow,
                 form.locationBox,
+                form.locationGuidanceBox,
                 form.extraRow,
                 form.notesBox,
                 new Separator(),
-                configureTypesBtn,
+                ticketTypesTitle,
                 configureHint,
-                specialTicketsBtn,
-                specialHint,
+                ticketTypesSummary,
+                configureTypesBtn,
                 actions
         );
 
@@ -945,12 +639,21 @@ public class CoordinatorDashboardView {
 
         EventEditorForm form = new EventEditorForm(seedEvent);
 
-        Button configureTypesBtn = new Button("\uD83C\uDFAB Configure Multiple Ticket Types");
+        Label ticketTypesTitle = new Label("Ticket Types");
+        ticketTypesTitle.getStyleClass().add("card-title");
+
+        Label configureHint = new Label("Add or update ticket types like VIP or Student with custom pricing.");
+        configureHint.getStyleClass().add("card-text");
+
+        Label ticketTypesSummary = buildTicketTypeSummaryLabel(form.ticketTypePrices);
+
+        Button configureTypesBtn = new Button("\uD83C\uDFAB Add / Edit Ticket Types");
         configureTypesBtn.getStyleClass().add("primary-btn");
         configureTypesBtn.setOnAction(e -> {
-            LinkedHashMap<String, String> updated = showTicketTypeConfigurationDialog(form.ticketTypePrices, configureTypesBtn.getScene());
+            LinkedHashMap<String, String> updated = showTicketTypeConfigurationDialog(form.ticketTypePrices, configureTypesBtn.getScene(), form, seedEvent);
             if (updated != null) {
                 form.ticketTypePrices = updated;
+                ticketTypesSummary.setText(buildTicketTypeSummaryText(updated));
                 String standardPrice = updated.get("Standard");
                 if (standardPrice != null) {
                     form.priceField.setText(toEditablePrice(standardPrice));
@@ -974,11 +677,16 @@ public class CoordinatorDashboardView {
         card.getChildren().addAll(
                 top,
                 form.titleBox,
-                form.dateTimeRow,
+                form.startDateTimeRow,
+                form.endDateTimeRow,
                 form.locationBox,
+                form.locationGuidanceBox,
                 form.extraRow,
                 form.notesBox,
                 new Separator(),
+                ticketTypesTitle,
+                configureHint,
+                ticketTypesSummary,
                 configureTypesBtn,
                 actions
         );
@@ -987,7 +695,10 @@ public class CoordinatorDashboardView {
         return content;
     }
 
-    private LinkedHashMap<String, String> showTicketTypeConfigurationDialog(LinkedHashMap<String, String> current, Scene ownerScene) {
+    private LinkedHashMap<String, String> showTicketTypeConfigurationDialog(LinkedHashMap<String, String> current,
+                                                                            Scene ownerScene,
+                                                                            EventEditorForm form,
+                                                                            Event targetEvent) {
         Stage popup = new Stage();
         popup.initModality(Modality.APPLICATION_MODAL);
         popup.setResizable(false);
@@ -1069,6 +780,27 @@ public class CoordinatorDashboardView {
 
         final LinkedHashMap<String, String>[] resultHolder = new LinkedHashMap[]{null};
 
+        Button saveBtn = new Button("Save Ticket Types");
+        saveBtn.getStyleClass().add("primary-btn");
+        saveBtn.setOnAction(e -> {
+            LinkedHashMap<String, String> mapped = collectTicketTypes(rows);
+            if (mapped == null) {
+                return;
+            }
+
+            if (!mapped.containsKey("Standard")) {
+                AlertHelper.showError("Ticket Types", "A Standard ticket type is required.");
+                return;
+            }
+
+            resultHolder[0] = mapped;
+            form.ticketTypePrices = new LinkedHashMap<>(mapped);
+            if (targetEvent != null) {
+                ticketController.setConfiguredTicketTypesForEvent(targetEvent, mapped);
+            }
+            AlertHelper.showInfo("Ticket Types Saved", "The ticket types were saved successfully.");
+        });
+
         Button doneBtn = new Button("Done - Back to Event Form");
         doneBtn.getStyleClass().add("secondary-btn");
         doneBtn.setOnAction(e -> {
@@ -1083,11 +815,20 @@ public class CoordinatorDashboardView {
             }
 
             resultHolder[0] = mapped;
+            form.ticketTypePrices = new LinkedHashMap<>(mapped);
+            if (targetEvent != null) {
+                ticketController.setConfiguredTicketTypesForEvent(targetEvent, mapped);
+            }
             popup.close();
         });
 
-        HBox footer = new HBox(doneBtn);
+        HBox footer = new HBox(12, saveBtn, doneBtn);
         footer.setAlignment(Pos.CENTER_RIGHT);
+
+        ScrollPane rowsScrollPane = new ScrollPane(rowsBox);
+        rowsScrollPane.setFitToWidth(true);
+        rowsScrollPane.setPrefViewportHeight(260);
+        rowsScrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent;");
 
         card.getChildren().addAll(
                 header,
@@ -1095,7 +836,7 @@ public class CoordinatorDashboardView {
                 section,
                 sectionSub,
                 addBtn,
-                rowsBox,
+                rowsScrollPane,
                 new Separator(),
                 countLabel,
                 footer
@@ -1113,7 +854,6 @@ public class CoordinatorDashboardView {
 
         return resultHolder[0];
     }
-
     private LinkedHashMap<String, String> collectTicketTypes(List<TicketTypeRow> rows) {
         if (rows.isEmpty()) {
             AlertHelper.showError("Ticket Types", "Please add at least one ticket type.");
@@ -1173,12 +913,18 @@ public class CoordinatorDashboardView {
             return;
         }
 
+        String endValidation = validateOptionalEndDateTime(form, startDateTime);
+        if (endValidation != null) {
+            AlertHelper.showError("Invalid Event", endValidation);
+            return;
+        }
+
         Event event = new Event(
                 form.titleField.getText().trim(),
                 buildDateTimeValue(form.startDatePicker.getValue(), form.startTimeBox.getValue()),
-                "",
+                buildDateTimeValue(form.endDatePicker.getValue(), form.endTimeBox.getValue()),
                 form.locationField.getText().trim(),
-                "",
+                form.locationGuidanceField.getText().trim(),
                 form.notesArea.getText().trim(),
                 normalizePrice(form.priceField.getText()),
                 form.capacityField.getText().trim(),
@@ -1193,7 +939,9 @@ public class CoordinatorDashboardView {
         }
 
         eventController.createEvent(event);
+        syncStoredEventStatus(event);
         ticketController.setConfiguredTicketTypesForEvent(event, configuredTypes);
+        AlertHelper.showInfo("Event Created", "The event was created successfully.");
         mainView.showCoordinatorDashboard("Events");
     }
 
@@ -1218,12 +966,18 @@ public class CoordinatorDashboardView {
             return;
         }
 
+        String endValidation = validateOptionalEndDateTime(form, startDateTime);
+        if (endValidation != null) {
+            AlertHelper.showError("Invalid Event", endValidation);
+            return;
+        }
+
         Event updatedEvent = new Event(
                 form.titleField.getText().trim(),
                 buildDateTimeValue(form.startDatePicker.getValue(), form.startTimeBox.getValue()),
-                "",
+                buildDateTimeValue(form.endDatePicker.getValue(), form.endTimeBox.getValue()),
                 form.locationField.getText().trim(),
-                "",
+                form.locationGuidanceField.getText().trim(),
                 form.notesArea.getText().trim(),
                 normalizePrice(form.priceField.getText()),
                 form.capacityField.getText().trim(),
@@ -1245,9 +999,31 @@ public class CoordinatorDashboardView {
 
         ticketController.moveConfiguredTicketTypes(currentEvent, updatedEvent);
         ticketController.setConfiguredTicketTypesForEvent(updatedEvent, configuredTypes);
+        syncStoredEventStatus(updatedEvent);
 
         mainView.clearEditingEvent();
+        AlertHelper.showInfo("Event Updated", "The event was updated successfully.");
         mainView.showCoordinatorDashboard("Events");
+    }
+
+    private String validateOptionalEndDateTime(EventEditorForm form, LocalDateTime startDateTime) {
+        boolean hasEndDate = form.endDatePicker.getValue() != null;
+        boolean hasEndTime = form.endTimeBox.getValue() != null && !form.endTimeBox.getValue().isBlank();
+
+        if (!hasEndDate && !hasEndTime) {
+            return null;
+        }
+
+        if (!hasEndDate || !hasEndTime) {
+            return "Please choose both end date and end time, or leave both empty.";
+        }
+
+        LocalDateTime endDateTime = LocalDateTime.of(form.endDatePicker.getValue(), LocalTime.parse(form.endTimeBox.getValue(), TIME_FORMATTER));
+        if (endDateTime.isBefore(startDateTime)) {
+            return "The end date and time must be after the event start.";
+        }
+
+        return null;
     }
 
     private String buildDateTimeValue(LocalDate date, String time) {
@@ -1334,28 +1110,18 @@ public class CoordinatorDashboardView {
         return dateTime.replace(" at ", ", ");
     }
 
-    private List<Ticket> getSoldEventTickets() {
-        List<Ticket> soldTickets = new ArrayList<>();
-        for (Ticket ticket : ticketController.getAllTickets()) {
-            if (!ticket.isSpecialTicket()) {
-                soldTickets.add(ticket);
-            }
-        }
-        return soldTickets;
-    }
-
-    private boolean matchesTicketSearch(Ticket ticket, String query) {
+    private boolean matchesTicketSearch(SoldTicketRecord ticket, String query) {
         if (query == null || query.isBlank()) {
             return true;
         }
 
         String needle = query.trim().toLowerCase(Locale.ENGLISH);
-        String customerName = ticket.hasCustomer() ? safeText(ticket.getCustomer().getName()) : "";
-        String customerEmail = ticket.hasCustomer() ? safeText(ticket.getCustomer().getEmail()) : "";
+        String customerName = safeText(ticket.getCustomerName());
+        String customerEmail = safeText(ticket.getCustomerEmail());
         String usedText = ticket.isUsed() ? "used" : "not used";
 
-        return safeText(ticket.getTicketId()).toLowerCase(Locale.ENGLISH).contains(needle)
-                || safeText(ticket.getEventTitle()).toLowerCase(Locale.ENGLISH).contains(needle)
+        return safeText(ticket.getPublicCode()).toLowerCase(Locale.ENGLISH).contains(needle)
+                || safeText(ticket.getEventName()).toLowerCase(Locale.ENGLISH).contains(needle)
                 || safeText(ticket.getTicketType()).toLowerCase(Locale.ENGLISH).contains(needle)
                 || safeText(ticket.getPrice()).toLowerCase(Locale.ENGLISH).contains(needle)
                 || customerName.toLowerCase(Locale.ENGLISH).contains(needle)
@@ -1379,8 +1145,37 @@ public class CoordinatorDashboardView {
         return value == null ? "" : value;
     }
 
-    private String displayText(String value) {
-        return value == null || value.isBlank() ? "-" : value.trim();
+    private Label buildTicketTypeSummaryLabel(LinkedHashMap<String, String> ticketTypes) {
+        Label label = new Label(buildTicketTypeSummaryText(ticketTypes));
+        label.getStyleClass().add("card-text");
+        label.setWrapText(true);
+        return label;
+    }
+
+    private String buildTicketTypeSummaryText(LinkedHashMap<String, String> ticketTypes) {
+        if (ticketTypes == null || ticketTypes.isEmpty()) {
+            return "No ticket types configured yet.";
+        }
+
+        List<String> summaries = new ArrayList<>();
+        for (Map.Entry<String, String> entry : ticketTypes.entrySet()) {
+            summaries.add(entry.getKey() + " (" + entry.getValue() + ")");
+        }
+        return String.join(" | ", summaries);
+    }
+
+    private void syncStoredEventStatus(Event event) {
+        String status = ticketController.getEventStatus(event);
+        event.setStatus(status);
+        eventController.updateEventStatus(event, status);
+    }
+
+    private String statusStyleClass(String status) {
+        return switch (status) {
+            case "Sold Out" -> "status-sold";
+            case "Fast Selling" -> "status-fast";
+            default -> "status-avail";
+        };
     }
 
     private VBox fieldBox(String labelText, javafx.scene.Node field) {
@@ -1433,14 +1228,19 @@ public class CoordinatorDashboardView {
         private final TextField titleField = new TextField();
         private final DatePicker startDatePicker = new DatePicker();
         private final ComboBox<String> startTimeBox = new ComboBox<>(FXCollections.observableArrayList(generateTimes()));
+        private final DatePicker endDatePicker = new DatePicker();
+        private final ComboBox<String> endTimeBox = new ComboBox<>(FXCollections.observableArrayList(generateTimes()));
         private final TextField locationField = new TextField();
+        private final TextField locationGuidanceField = new TextField();
         private final TextField capacityField = new TextField();
         private final TextField priceField = new TextField();
         private final TextArea notesArea = new TextArea();
 
         private final VBox titleBox;
-        private final HBox dateTimeRow;
+        private final HBox startDateTimeRow;
+        private final HBox endDateTimeRow;
         private final VBox locationBox;
+        private final VBox locationGuidanceBox;
         private final HBox extraRow;
         private final VBox notesBox;
 
@@ -1453,6 +1253,7 @@ public class CoordinatorDashboardView {
         private EventEditorForm(Event seedEvent) {
             titleField.setPromptText("Enter event title");
             locationField.setPromptText("Enter venue location");
+            locationGuidanceField.setPromptText("Optional directions or meeting point");
             capacityField.setPromptText("e.g., 300");
             priceField.setPromptText("e.g., 150 (or 0 for free)");
             priceField.setTextFormatter(numericFormatter());
@@ -1463,18 +1264,25 @@ public class CoordinatorDashboardView {
 
             titleField.getStyleClass().add("input-field");
             locationField.getStyleClass().add("input-field");
+            locationGuidanceField.getStyleClass().add("input-field");
             capacityField.getStyleClass().add("input-field");
             startDatePicker.getStyleClass().add("input-field");
             startTimeBox.getStyleClass().add("input-field");
+            endDatePicker.getStyleClass().add("input-field");
+            endTimeBox.getStyleClass().add("input-field");
             priceField.getStyleClass().add("input-field");
 
             startTimeBox.setPromptText("--:--");
             startTimeBox.setMaxWidth(Double.MAX_VALUE);
+            endTimeBox.setPromptText("--:--");
+            endTimeBox.setMaxWidth(Double.MAX_VALUE);
 
             if (seedEvent != null) {
                 titleField.setText(seedEvent.getTitle());
                 setDateTimeFields(seedEvent.getStartDateTime(), startDatePicker, startTimeBox);
+                setDateTimeFields(seedEvent.getEndDateTime(), endDatePicker, endTimeBox);
                 locationField.setText(seedEvent.getLocation());
+                locationGuidanceField.setText(seedEvent.getLocationGuidance());
                 notesArea.setText(seedEvent.getNotes());
                 priceField.setText(toEditablePrice(seedEvent.getPrice()));
                 capacityField.setText(seedEvent.getCapacity());
@@ -1495,11 +1303,16 @@ public class CoordinatorDashboardView {
             }
 
             titleBox = fieldBox("Event Title *", titleField);
-            dateTimeRow = twoColRow(
+            startDateTimeRow = twoColRow(
                     fieldBox("Event Date *", startDatePicker),
                     fieldBox("Event Time *", startTimeBox)
             );
+            endDateTimeRow = twoColRow(
+                    fieldBox("End Date", endDatePicker),
+                    fieldBox("End Time", endTimeBox)
+            );
             locationBox = fieldBox("Venue *", locationField);
+            locationGuidanceBox = fieldBox("Location Guidance", locationGuidanceField);
             extraRow = twoColRow(
                     fieldBox("Capacity *", capacityField),
                     fieldBox("Price (DKK) *", priceField)
@@ -1521,11 +1334,19 @@ public class CoordinatorDashboardView {
         private final TextField nameField;
         private final TextField priceField;
         private final Button removeButton;
+        private final boolean standardRow;
 
         private TicketTypeRow(String name, String price) {
+            standardRow = "Standard".equalsIgnoreCase(name == null ? "" : name.trim());
+
             nameField = new TextField(name);
             nameField.getStyleClass().add("input-field");
             nameField.setPromptText("Standard");
+            if (standardRow) {
+                nameField.getStyleClass().add("locked-field");
+                nameField.setEditable(false);
+                nameField.setFocusTraversable(false);
+            }
 
             priceField = new TextField(price);
             priceField.getStyleClass().add("input-field");
@@ -1533,6 +1354,11 @@ public class CoordinatorDashboardView {
 
             removeButton = new Button("Remove");
             removeButton.getStyleClass().add("danger-btn");
+            if (standardRow) {
+                removeButton.setDisable(true);
+                removeButton.setVisible(false);
+                removeButton.setManaged(false);
+            }
 
             Label nameLabel = new Label("Ticket Type");
             nameLabel.getStyleClass().add("form-label");
@@ -1551,148 +1377,5 @@ public class CoordinatorDashboardView {
             container.getStyleClass().addAll("event-card", "event-list-card");
             container.setPadding(new Insets(14));
         }
-    }
-
-    private void updateSoldTicketSummary(Label count, Label statusSummary, List<Ticket> soldTickets) {
-        int usedCount = 0;
-        for (Ticket ticket : soldTickets) {
-            if (ticket.isUsed()) {
-                usedCount++;
-            }
-        }
-
-        int unusedCount = soldTickets.size() - usedCount;
-        count.setText("\uD83C\uDFAB " + soldTickets.size() + (soldTickets.size() == 1 ? " ticket sold" : " tickets sold"));
-        statusSummary.setText("Used: " + usedCount + "   |   Not Used: " + unusedCount);
-    }
-
-    private void chooseTicketImageAndRedeem(TextField tokenField,
-                                            Label redeemStatus,
-                                            TextArea redeemResultArea,
-                                            Label count,
-                                            Label statusSummary,
-                                            List<Ticket> soldTickets,
-                                            Runnable refreshList) {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Choose QR / Barcode Image");
-        chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("Image Files", "*.png", "*.jpg", "*.jpeg", "*.bmp")
-        );
-
-        File file = chooser.showOpenDialog(mainView.getRoot().getScene().getWindow());
-        if (file == null) {
-            return;
-        }
-
-        try {
-            String token = qrScannerService.decodeToken(file);
-            tokenField.setText(token);
-            redeemTicketToken(token, redeemStatus, redeemResultArea, count, statusSummary, soldTickets, refreshList);
-        } catch (Exception ex) {
-            updateRedeemFeedback(redeemStatus, redeemResultArea, false, "Scan Failed", ex.getMessage());
-        }
-    }
-
-    private void chooseTicketPdfAndRedeem(TextField tokenField,
-                                          Label redeemStatus,
-                                          TextArea redeemResultArea,
-                                          Label count,
-                                          Label statusSummary,
-                                          List<Ticket> soldTickets,
-                                          Runnable refreshList) {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Choose Ticket PDF");
-        chooser.getExtensionFilters().add(
-                new FileChooser.ExtensionFilter("PDF Files", "*.pdf")
-        );
-
-        File file = chooser.showOpenDialog(mainView.getRoot().getScene().getWindow());
-        if (file == null) {
-            return;
-        }
-
-        try {
-            String token = qrScannerService.decodeTokenFromPdf(file);
-            tokenField.setText(token);
-            redeemTicketToken(token, redeemStatus, redeemResultArea, count, statusSummary, soldTickets, refreshList);
-        } catch (Exception ex) {
-            updateRedeemFeedback(redeemStatus, redeemResultArea, false, "Scan Failed", ex.getMessage());
-        }
-    }
-
-    private void redeemTicketFromInput(TextField tokenField,
-                                       Label redeemStatus,
-                                       TextArea redeemResultArea,
-                                       Label count,
-                                       Label statusSummary,
-                                       List<Ticket> soldTickets,
-                                       Runnable refreshList) {
-        redeemTicketToken(tokenField.getText(), redeemStatus, redeemResultArea, count, statusSummary, soldTickets, refreshList);
-    }
-
-    private void redeemTicketToken(String token,
-                                   Label redeemStatus,
-                                   TextArea redeemResultArea,
-                                   Label count,
-                                   Label statusSummary,
-                                   List<Ticket> soldTickets,
-                                   Runnable refreshList) {
-        TicketScanResult result = ticketRedemptionService.redeem(mainView.getCurrentUser(), null, token);
-
-        updateRedeemFeedback(
-                redeemStatus,
-                redeemResultArea,
-                result.success(),
-                result.title(),
-                buildRedeemMessage(result)
-        );
-
-        Ticket resultTicket = result.ticket();
-        if (result.success() && resultTicket != null) {
-            for (Ticket existing : soldTickets) {
-                if (existing.getTicketId() != null && existing.getTicketId().equalsIgnoreCase(resultTicket.getTicketId())) {
-                    existing.setUsed(true);
-                    break;
-                }
-            }
-
-            updateSoldTicketSummary(count, statusSummary, soldTickets);
-            refreshList.run();
-        }
-    }
-
-    private void updateRedeemFeedback(Label redeemStatus,
-                                      TextArea redeemResultArea,
-                                      boolean success,
-                                      String statusText,
-                                      String messageText) {
-        redeemStatus.setText(statusText);
-        redeemStatus.getStyleClass().removeAll("status-avail", "status-fast");
-        redeemStatus.getStyleClass().add(success ? "status-avail" : "status-fast");
-        redeemResultArea.setText(messageText);
-    }
-
-    private String buildRedeemMessage(TicketScanResult result) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(result.message());
-
-        Ticket ticket = result.ticket();
-        if (ticket == null) {
-            return builder.toString();
-        }
-
-        builder.append("\n\nTicket ID: ").append(displayText(ticket.getTicketId()));
-        builder.append("\nEvent: ").append(displayText(ticket.getEventTitle()));
-        builder.append("\nType: ").append(displayText(ticket.getTicketType()));
-        builder.append("\nPrice: ").append(displayText(ticket.getPrice()));
-        builder.append("\nUsed: ").append(ticket.isUsed() ? "Yes" : "No");
-        builder.append("\nActive: ").append(ticket.isActive() ? "Yes" : "No");
-
-        if (ticket.hasCustomer()) {
-            builder.append("\nCustomer: ").append(displayText(ticket.getCustomer().getName()));
-            builder.append("\nEmail: ").append(displayText(ticket.getCustomer().getEmail()));
-        }
-
-        return builder.toString();
     }
 }
