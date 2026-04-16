@@ -10,15 +10,15 @@ import java.util.Properties;
 public final class DatabaseConnection {
     private static final String DEFAULT_URL = "jdbc:sqlserver://localhost:1433;databaseName=tickets;encrypt=true;trustServerCertificate=true";
     private static final String CONFIG_FILE = "config.properties";
+    private static final Properties DB_PROPERTIES = loadProperties();
 
     private DatabaseConnection() {
     }
 
     public static Connection getConnection() throws SQLException {
-        Properties properties = loadProperties();
-        String url = valueOrDefault(properties.getProperty("db.url"), DEFAULT_URL);
-        String user = properties.getProperty("db.user");
-        String password = valueOrDefault(properties.getProperty("db.password"), "");
+        String url = valueOrDefault(DB_PROPERTIES.getProperty("db.url"), DEFAULT_URL);
+        String user = DB_PROPERTIES.getProperty("db.user");
+        String password = valueOrDefault(DB_PROPERTIES.getProperty("db.password"), "");
 
         if (user == null || user.isBlank()) {
             return DriverManager.getConnection(url);

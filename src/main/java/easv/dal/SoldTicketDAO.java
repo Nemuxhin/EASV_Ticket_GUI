@@ -13,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SoldTicketDAO {
+    private static final Object TABLE_LOCK = new Object();
+    private static volatile boolean tableEnsured;
 
     public void saveSoldTicket(Ticket ticket) {
         if (ticket == null) {
@@ -485,6 +487,15 @@ public class SoldTicketDAO {
     }
 
     private void ensureTableExists() {
+        if (tableEnsured) {
+            return;
+        }
+
+        synchronized (TABLE_LOCK) {
+            if (tableEnsured) {
+                return;
+            }
+
         String sql = """
                 IF OBJECT_ID(N'dbo.SoldTickets', N'U') IS NULL
                 BEGIN
@@ -537,11 +548,13 @@ public class SoldTicketDAO {
                     ALTER TABLE dbo.SoldTickets ADD ValidForAllEvents BIT NOT NULL CONSTRAINT DF_SoldTickets_ValidForAllEvents_Added DEFAULT 0;
                 """;
 
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.execute();
-        } catch (SQLException ex) {
-            throw new RuntimeException("Could not create or update sold tickets table.", ex);
+            try (Connection connection = DatabaseConnection.getConnection();
+                 PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.execute();
+                tableEnsured = true;
+            } catch (SQLException ex) {
+                throw new RuntimeException("Could not create or update sold tickets table.", ex);
+            }
         }
     }
 

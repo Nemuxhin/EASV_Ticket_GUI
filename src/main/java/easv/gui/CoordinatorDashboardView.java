@@ -272,10 +272,11 @@ public class CoordinatorDashboardView {
         HBox.setHgrow(searchBar, Priority.ALWAYS);
 
         GridPane grid = createTwoColumnGrid();
+        List<Event> visibleEvents = getVisibleCoordinatorEvents();
 
         Runnable render = () -> {
             List<Event> filteredEvents = new ArrayList<>();
-            for (Event event : getVisibleCoordinatorEvents()) {
+            for (Event event : visibleEvents) {
                 if (matchesSearch(event, searchBar.getText())) {
                     filteredEvents.add(event);
                 }
@@ -299,8 +300,9 @@ public class CoordinatorDashboardView {
 
         VBox list = new VBox(16);
         List<User> coordinators = userController.getUsersByRole("Event Coordinator");
+        List<Event> visibleEvents = getVisibleCoordinatorEvents();
 
-        for (Event event : getVisibleCoordinatorEvents()) {
+        for (Event event : visibleEvents) {
             list.getChildren().add(createAccessCard(event, coordinators));
         }
 
@@ -494,8 +496,7 @@ public class CoordinatorDashboardView {
         row.getStyleClass().addAll("event-card", "event-list-card");
         row.setPadding(new Insets(14));
 
-        Ticket resolvedTicket = resolveSoldTicket(ticket);
-        boolean used = ticket.isUsed() || (resolvedTicket != null && resolvedTicket.isUsed());
+        boolean used = ticket.isUsed();
 
         String customerName = displayText(ticket.getCustomerName());
         String customerEmail = displayText(ticket.getCustomerEmail());
@@ -505,9 +506,6 @@ public class CoordinatorDashboardView {
         }
 
         String ticketIdText = displayText(ticket.getTicketId());
-        if ("-".equals(ticketIdText) && resolvedTicket != null) {
-            ticketIdText = displayText(resolvedTicket.getTicketId());
-        }
 
         Label title = new Label(displayText(ticket.getEventName()));
         title.getStyleClass().add("card-title");
@@ -533,24 +531,20 @@ public class CoordinatorDashboardView {
         Label publicCode = new Label("Public Code: " + displayText(ticket.getPublicCode()));
         publicCode.getStyleClass().add("card-text");
 
-        HBox actions = buildSoldTicketActions(ticket, resolvedTicket, used, redeemStatus, redeemResultArea, refreshList);
+        HBox actions = buildSoldTicketActions(ticket, used, redeemStatus, redeemResultArea, refreshList);
 
         row.getChildren().addAll(top, details, customer, ticketId, publicCode, actions);
         return row;
     }
 
     private HBox buildSoldTicketActions(SoldTicketRecord soldTicket,
-                                        Ticket resolvedTicket,
                                         boolean used,
                                         Label redeemStatus,
                                         TextArea redeemResultArea,
                                         Runnable refreshList) {
-        boolean canPrint = resolvedTicket != null && !safeText(resolvedTicket.getSecureToken()).isBlank();
+        boolean canPrint = !safeText(soldTicket.getPublicCode()).isBlank();
         boolean canEmail = canPrint && isValidEmail(soldTicket.getCustomerEmail());
-        boolean canRedeem = resolvedTicket != null
-                && resolvedTicket.isActive()
-                && !used
-                && !safeText(resolvedTicket.getSecureToken()).isBlank();
+        boolean canRedeem = !used && canPrint;
 
         Button printPdfButton = new Button("Print PDF");
         printPdfButton.getStyleClass().add("secondary-btn");
@@ -574,32 +568,8 @@ public class CoordinatorDashboardView {
         return actions;
     }
 
-    private Ticket resolveSoldTicket(SoldTicketRecord soldTicket) {
-        if (soldTicket == null) {
-            return null;
-        }
-
-        String publicCode = safeText(soldTicket.getPublicCode()).trim();
-        if (!publicCode.isBlank()) {
-            Ticket byPublicCode = ticketController.findTicketByPublicCodeOrTicketId(publicCode);
-            if (byPublicCode != null) {
-                return byPublicCode;
-            }
-        }
-
-        String ticketId = safeText(soldTicket.getTicketId()).trim();
-        if (!ticketId.isBlank()) {
-            Ticket byTicketId = ticketController.findTicketByPublicCodeOrTicketId(ticketId);
-            if (byTicketId != null) {
-                return byTicketId;
-            }
-        }
-
-        return ticketController.buildTicketFromSoldRecord(soldTicket);
-    }
-
     private void printSoldTicketPdf(SoldTicketRecord soldTicket) {
-        Ticket ticketToPrint = resolveSoldTicket(soldTicket);
+        Ticket ticketToPrint = ticketController.buildTicketFromSoldRecord(soldTicket);
         if (ticketToPrint == null) {
             AlertHelper.showError("Print Failed", "The ticket could not be rebuilt from the sold ticket record.");
             return;
@@ -618,7 +588,7 @@ public class CoordinatorDashboardView {
             return;
         }
 
-        Ticket ticketToSend = resolveSoldTicket(soldTicket);
+        Ticket ticketToSend = ticketController.buildTicketFromSoldRecord(soldTicket);
         if (ticketToSend == null) {
             AlertHelper.showError("Email Failed", "The ticket could not be rebuilt from the sold ticket record.");
             return;
@@ -643,9 +613,6 @@ public class CoordinatorDashboardView {
         }
 
         String ticketId = displayText(soldTicket.getTicketId());
-        if ("-".equals(ticketId) && resolvedTicket != null) {
-            ticketId = displayText(resolvedTicket.getTicketId());
-        }
 
         StringBuilder builder = new StringBuilder();
         builder.append("Hi ").append(customerName).append(",\n\n");

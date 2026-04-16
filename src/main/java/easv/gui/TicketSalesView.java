@@ -55,14 +55,16 @@ public class TicketSalesView {
     }
 
     public Parent getView() {
+        EventSalesSnapshot initialSnapshot = loadSalesSnapshot();
+
         VBox content = new VBox(20);
         content.setPadding(new Insets(30, 50, 30, 50));
         content.getStyleClass().add("main-bg");
 
         content.getChildren().addAll(
                 buildTopBar(),
-                buildEventCard(),
-                buildFormCard()
+                buildEventCard(initialSnapshot),
+                buildFormCard(initialSnapshot)
         );
 
         ScrollPane scrollPane = new ScrollPane(content);
@@ -86,21 +88,16 @@ public class TicketSalesView {
         return topBar;
     }
 
-    private VBox buildEventCard() {
+    private VBox buildEventCard(EventSalesSnapshot snapshot) {
         VBox eventCard = new VBox(10);
         eventCard.getStyleClass().add("event-card");
-
-        int soldCount = getSoldCountForEvent();
-        int capacity = getEventCapacityValue();
-        int remaining = getRemainingCapacity();
-        String liveStatus = getLiveEventStatus();
 
         eventCard.getChildren().addAll(
                 styleLabel(event.getTitle(), "page-title"),
                 styleLabel("Starts: " + safeText(event.getStartDateTime()), "card-text"),
                 styleLabel("Location: " + safeText(event.getLocation()), "card-text"),
-                styleLabel("Status: " + liveStatus, "card-text"),
-                styleLabel(buildCapacitySummary(soldCount, capacity, remaining), "card-text")
+                styleLabel("Status: " + snapshot.status, "card-text"),
+                styleLabel(buildCapacitySummary(snapshot.soldCount, snapshot.capacity, snapshot.remaining), "card-text")
         );
 
         if (event.hasEndDateTime()) {
@@ -114,7 +111,7 @@ public class TicketSalesView {
         return eventCard;
     }
 
-    private VBox buildFormCard() {
+    private VBox buildFormCard(EventSalesSnapshot snapshot) {
         VBox formCard = new VBox(18);
         formCard.getStyleClass().add("event-card");
         formCard.setMaxWidth(1100);
@@ -169,8 +166,7 @@ public class TicketSalesView {
         Button plus = new Button("+");
         plus.getStyleClass().add("secondary-btn");
         plus.setOnAction(e -> {
-            int remaining = getRemainingCapacity();
-            if (remaining != Integer.MAX_VALUE && quantity.get() >= remaining) {
+            if (snapshot.remaining != Integer.MAX_VALUE && quantity.get() >= snapshot.remaining) {
                 return;
             }
             quantity.set(quantity.get() + 1);
@@ -191,12 +187,12 @@ public class TicketSalesView {
         selectedType.addListener((obs, oldValue, newValue) -> refreshTotal.run());
         quantity.addListener((obs, oldValue, newValue) -> refreshTotal.run());
 
-        Label availabilityText = styleLabel(buildSalesAvailabilityText(), "card-text");
+        Label availabilityText = styleLabel(buildSalesAvailabilityText(snapshot), "card-text");
 
-        Button confirmButton = new Button(isSoldOut() ? "Sold Out" : "Confirm Purchase");
+        Button confirmButton = new Button(snapshot.soldOut() ? "Sold Out" : "Confirm Purchase");
         confirmButton.getStyleClass().add("primary-btn");
         confirmButton.setMaxWidth(Double.MAX_VALUE);
-        confirmButton.setDisable(isSoldOut());
+        confirmButton.setDisable(snapshot.soldOut());
         confirmButton.setOnAction(e ->
                 handlePurchase(
                         nameField.getText().trim(),
@@ -247,13 +243,15 @@ public class TicketSalesView {
                                 String ticketType,
                                 int quantity,
                                 LinkedHashMap<String, String> ticketTypePrices) {
+        EventSalesSnapshot currentSnapshot = loadSalesSnapshot();
+
         String validation = validatePurchaseInput(customerName, customerEmail, ticketType, quantity, ticketTypePrices);
         if (validation != null) {
             AlertHelper.showError("Invalid Purchase", validation);
             return;
         }
 
-        int remaining = getRemainingCapacity();
+        int remaining = currentSnapshot.remaining;
         if (remaining != Integer.MAX_VALUE) {
             if (remaining <= 0) {
                 AlertHelper.showError("Sold Out", "This event is sold out. No more tickets can be sold.");
@@ -722,11 +720,6 @@ public class TicketSalesView {
         return builder.toString();
     }
 
-    private int getSoldCountForEvent() {
-        return ticketController.getSoldCountForEvent(event);
-    }
-
-
     private int getEventCapacityValue() {
         if (event == null || event.getCapacity() == null) {
             return Integer.MAX_VALUE;
@@ -750,21 +743,14 @@ public class TicketSalesView {
         }
     }
 
-    private int getRemainingCapacity() {
+    private EventSalesSnapshot loadSalesSnapshot() {
+        int soldCount = ticketController.getSoldCountForEvent(event);
         int capacity = getEventCapacityValue();
-        if (capacity == Integer.MAX_VALUE) {
-            return Integer.MAX_VALUE;
-        }
-
-        return Math.max(capacity - getSoldCountForEvent(), 0);
-    }
-
-    private boolean isSoldOut() {
-        return "Sold Out".equalsIgnoreCase(getLiveEventStatus());
-    }
-
-    private String getLiveEventStatus() {
-        return ticketController.getEventStatus(event);
+        int remaining = capacity == Integer.MAX_VALUE
+                ? Integer.MAX_VALUE
+                : Math.max(capacity - soldCount, 0);
+        String status = ticketController.getEventStatus(event);
+        return new EventSalesSnapshot(soldCount, capacity, remaining, status);
     }
 
     private String buildCapacitySummary(int soldCount, int capacity, int remaining) {
@@ -779,24 +765,20 @@ public class TicketSalesView {
         return "Sold: " + soldCount + " / " + capacity + "  |  Left: " + remaining;
     }
 
-    private String buildSalesAvailabilityText() {
-        int capacity = getEventCapacityValue();
-        int remaining = getRemainingCapacity();
-
-        if (capacity == Integer.MAX_VALUE) {
-            int sold = getSoldCountForEvent();
-            return sold == 0
+    private String buildSalesAvailabilityText(EventSalesSnapshot snapshot) {
+        if (snapshot.capacity == Integer.MAX_VALUE) {
+            return snapshot.soldCount == 0
                     ? "Capacity is currently not limited for this event."
-                    : sold + " tickets have already been sold. Capacity is not limited.";
+                    : snapshot.soldCount + " tickets have already been sold. Capacity is not limited.";
         }
 
-        if (remaining <= 0) {
+        if (snapshot.remaining <= 0) {
             return "This event is sold out. No more tickets can be sold.";
         }
 
-        return remaining == 1
+        return snapshot.remaining == 1
                 ? "Only 1 ticket remains for this event."
-                : remaining + " tickets remain for this event.";
+                : snapshot.remaining + " tickets remain for this event.";
     }
 
     private boolean matchesSoldTicketToEvent(SoldTicketRecord soldTicket) {
@@ -817,5 +799,23 @@ public class TicketSalesView {
 
     private String normalizeText(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private static final class EventSalesSnapshot {
+        private final int soldCount;
+        private final int capacity;
+        private final int remaining;
+        private final String status;
+
+        private EventSalesSnapshot(int soldCount, int capacity, int remaining, String status) {
+            this.soldCount = soldCount;
+            this.capacity = capacity;
+            this.remaining = remaining;
+            this.status = status == null || status.isBlank() ? "Available" : status;
+        }
+
+        private boolean soldOut() {
+            return "Sold Out".equalsIgnoreCase(status) || remaining <= 0;
+        }
     }
 }

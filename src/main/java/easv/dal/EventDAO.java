@@ -14,8 +14,10 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class EventDAO {
     private static final DateTimeFormatter DISPLAY_DATE_TIME = DateTimeFormatter.ofPattern("dd MMM yyyy 'at' HH:mm", Locale.ENGLISH);
@@ -103,12 +105,12 @@ public class EventDAO {
     }
 
     public void deleteEvent(Event event) {
-        Integer eventId = findEventId(event);
-        if (eventId == null) {
-            return;
-        }
-
         try (Connection connection = DatabaseConnection.getConnection()) {
+            Integer eventId = findEventId(connection, event);
+            if (eventId == null) {
+                return;
+            }
+
             connection.setAutoCommit(false);
             try (PreparedStatement statement = connection.prepareStatement("DELETE FROM Events WHERE EventID = ?")) {
                 deleteDependentRows(connection, event, eventId);
@@ -231,6 +233,7 @@ public class EventDAO {
 
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
+            Map<Integer, String[]> coordinatorsByEventId = loadCoordinatorsByEventId(connection);
 
             for (int i = 0; i < parameters.length; i++) {
                 statement.setObject(i + 1, parameters[i]);
@@ -239,7 +242,10 @@ public class EventDAO {
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
                     int eventId = resultSet.getInt("EventID");
-                    events.add(mapEvent(resultSet, getCoordinators(connection, eventId)));
+                    events.add(mapEvent(
+                            resultSet,
+                            coordinatorsByEventId.getOrDefault(eventId, new String[0])
+                    ));
                 }
             }
         } catch (SQLException ex) {
@@ -247,6 +253,33 @@ public class EventDAO {
         }
 
         return events;
+    }
+
+    private Map<Integer, String[]> loadCoordinatorsByEventId(Connection connection) throws SQLException {
+        String sql = """
+                SELECT ue.EventID, u.Names
+                FROM UserEvent ue
+                JOIN Users u ON u.UserID = ue.UserID
+                ORDER BY ue.EventID, u.Names
+                """;
+
+        Map<Integer, List<String>> grouped = new LinkedHashMap<>();
+
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                int eventId = resultSet.getInt("EventID");
+                grouped.computeIfAbsent(eventId, ignored -> new ArrayList<>())
+                        .add(resultSet.getString("Names"));
+            }
+        }
+
+        Map<Integer, String[]> coordinatorsByEventId = new LinkedHashMap<>();
+        for (Map.Entry<Integer, List<String>> entry : grouped.entrySet()) {
+            coordinatorsByEventId.put(entry.getKey(), entry.getValue().toArray(new String[0]));
+        }
+
+        return coordinatorsByEventId;
     }
 
     private String[] getCoordinators(Connection connection, int eventId) throws SQLException {
@@ -314,6 +347,18 @@ public class EventDAO {
     }
 
     private Integer findEventId(Event event) {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            return findEventId(connection, event);
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not find event.", ex);
+        }
+    }
+
+    private Integer findEventId(Connection connection, Event event) throws SQLException {
+        if (event == null) {
+            return null;
+        }
+
         String sql = """
                 SELECT TOP 1 EventID
                 FROM Events
@@ -321,8 +366,7 @@ public class EventDAO {
                 ORDER BY EventID DESC
                 """;
 
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
 
             statement.setString(1, event.getTitle());
             statement.setString(2, event.getLocation());
@@ -333,8 +377,6 @@ public class EventDAO {
                     return resultSet.getInt("EventID");
                 }
             }
-        } catch (SQLException ex) {
-            throw new RuntimeException("Could not find event.", ex);
         }
 
         return null;
@@ -419,75 +461,66 @@ public class EventDAO {
     }
 
     private void deleteDependentRows(Connection connection, Event event, int eventId) throws SQLException {
-        deleteIfColumnExists(connection, "UserEvent", "EventID", eventId);
-        deleteIfColumnExists(connection, "SpecialTickets", "EventID", eventId);
-        deleteCustomerTicketsForEvent(connection, eventId);
-        deleteIfColumnExists(connection, "Tickets", "EventID", eventId);
-        deleteIfColumnExists(connection, "SoldTickets", "EventName", event.getTitle());
-    }
-
-    private void deleteCustomerTicketsForEvent(Connection connection, int eventId) throws SQLException {
-        if (!tableExists(connection, "CustomerTickets")
-                || !tableExists(connection, "Tickets")
-                || !columnExists(connection, "CustomerTickets", "TicketID")
-                || !columnExists(connection, "Tickets", "TicketID")
-                || !columnExists(connection, "Tickets", "EventID")) {
-            return;
-        }
-
         String sql = """
-                DELETE ct
-                FROM CustomerTickets ct
-                JOIN Tickets t ON t.TicketID = ct.TicketID
-                WHERE t.EventID = ?
+                IF OBJECT_ID(N'dbo.UserEvent', N'U') IS NOT NULL
+                   AND COL_LENGTH(N'dbo.UserEvent', N'EventID') IS NOT NULL
+                BEGIN
+                    DELETE FROM dbo.UserEvent WHERE EventID = ?;
+                END
+
+                IF OBJECT_ID(N'dbo.SpecialTickets', N'U') IS NOT NULL
+                   AND COL_LENGTH(N'dbo.SpecialTickets', N'EventID') IS NOT NULL
+                BEGIN
+                    DELETE FROM dbo.SpecialTickets WHERE EventID = ?;
+                END
+
+                IF OBJECT_ID(N'dbo.CustomerTickets', N'U') IS NOT NULL
+                   AND OBJECT_ID(N'dbo.Tickets', N'U') IS NOT NULL
+                   AND COL_LENGTH(N'dbo.CustomerTickets', N'TicketID') IS NOT NULL
+                   AND COL_LENGTH(N'dbo.Tickets', N'TicketID') IS NOT NULL
+                   AND COL_LENGTH(N'dbo.Tickets', N'EventID') IS NOT NULL
+                BEGIN
+                    DELETE ct
+                    FROM dbo.CustomerTickets ct
+                    JOIN dbo.Tickets t ON t.TicketID = ct.TicketID
+                    WHERE t.EventID = ?;
+                END
+
+                IF OBJECT_ID(N'dbo.Tickets', N'U') IS NOT NULL
+                   AND COL_LENGTH(N'dbo.Tickets', N'EventID') IS NOT NULL
+                BEGIN
+                    DELETE FROM dbo.Tickets WHERE EventID = ?;
+                END
+
+                IF OBJECT_ID(N'dbo.SoldTickets', N'U') IS NOT NULL
+                   AND COL_LENGTH(N'dbo.SoldTickets', N'EventName') IS NOT NULL
+                BEGIN
+                    IF COL_LENGTH(N'dbo.SoldTickets', N'EventLocation') IS NOT NULL
+                       AND COL_LENGTH(N'dbo.SoldTickets', N'EventStartDateTime') IS NOT NULL
+                    BEGIN
+                        DELETE FROM dbo.SoldTickets
+                        WHERE EventName = ?
+                          AND (ISNULL(EventLocation, '') = '' OR EventLocation = ?)
+                          AND (ISNULL(EventStartDateTime, '') = '' OR EventStartDateTime = ?);
+                    END
+                    ELSE
+                    BEGIN
+                        DELETE FROM dbo.SoldTickets
+                        WHERE EventName = ?;
+                    END
+                END
                 """;
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setInt(1, eventId);
+            statement.setInt(2, eventId);
+            statement.setInt(3, eventId);
+            statement.setInt(4, eventId);
+            statement.setString(5, event.getTitle());
+            statement.setString(6, event.getLocation());
+            statement.setString(7, event.getStartDateTime());
+            statement.setString(8, event.getTitle());
             statement.executeUpdate();
-        }
-    }
-
-    private void deleteIfColumnExists(Connection connection, String tableName, String columnName, Object value) throws SQLException {
-        if (!tableExists(connection, tableName) || !columnExists(connection, tableName, columnName)) {
-            return;
-        }
-
-        String sql = "DELETE FROM " + tableName + " WHERE " + columnName + " = ?";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setObject(1, value);
-            statement.executeUpdate();
-        }
-    }
-
-    private boolean tableExists(Connection connection, String tableName) throws SQLException {
-        String sql = """
-                SELECT 1
-                FROM INFORMATION_SCHEMA.TABLES
-                WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = ?
-                """;
-
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, tableName);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                return resultSet.next();
-            }
-        }
-    }
-
-    private boolean columnExists(Connection connection, String tableName, String columnName) throws SQLException {
-        String sql = """
-                SELECT 1
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = ? AND COLUMN_NAME = ?
-                """;
-
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, tableName);
-            statement.setString(2, columnName);
-            try (ResultSet resultSet = statement.executeQuery()) {
-                return resultSet.next();
-            }
         }
     }
 }

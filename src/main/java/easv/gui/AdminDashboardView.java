@@ -172,11 +172,12 @@ public class AdminDashboardView {
         HBox.setHgrow(searchBar, Priority.ALWAYS);
 
         GridPane grid = createTwoColumnGrid();
+        List<User> allUsers = userController.getAllUsers();
 
         Runnable render = () -> {
             List<User> filteredUsers = new ArrayList<>();
 
-            for (User user : userController.getAllUsers()) {
+            for (User user : allUsers) {
                 if (!matchesUserSearch(user, searchBar.getText())) {
                     continue;
                 }
@@ -427,11 +428,12 @@ public class AdminDashboardView {
         searchBar.setMaxWidth(Double.MAX_VALUE);
 
         GridPane grid = createTwoColumnGrid();
+        List<Event> allEvents = eventController.getEvents();
 
         Runnable render = () -> {
             List<Event> filteredEvents = new ArrayList<>();
 
-            for (Event event : eventController.getEvents()) {
+            for (Event event : allEvents) {
                 if (!matchesEventSearch(event, searchBar.getText())) {
                     continue;
                 }
