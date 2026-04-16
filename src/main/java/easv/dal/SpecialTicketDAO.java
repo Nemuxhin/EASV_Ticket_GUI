@@ -12,6 +12,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SpecialTicketDAO {
+    private static final Object TABLE_LOCK = new Object();
+    private static volatile boolean tableEnsured;
 
     public void createSpecialTicket(String specialTicketName,
                                     String description,
@@ -114,6 +116,15 @@ public class SpecialTicketDAO {
     }
 
     private void ensureTableExists() {
+        if (tableEnsured) {
+            return;
+        }
+
+        synchronized (TABLE_LOCK) {
+            if (tableEnsured) {
+                return;
+            }
+
         String sql = """
                 IF OBJECT_ID(N'dbo.SpecialTickets', N'U') IS NULL
                 BEGIN
@@ -145,11 +156,13 @@ public class SpecialTicketDAO {
                 END
                 """;
 
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.execute();
-        } catch (SQLException ex) {
-            throw new RuntimeException("Could not create special tickets table.", ex);
+            try (Connection connection = DatabaseConnection.getConnection();
+                 PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.execute();
+                tableEnsured = true;
+            } catch (SQLException ex) {
+                throw new RuntimeException("Could not create special tickets table.", ex);
+            }
         }
     }
 

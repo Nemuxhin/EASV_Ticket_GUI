@@ -88,7 +88,9 @@ public class CoordinatorDashboardView {
     public Parent getView() {
         javafx.scene.layout.BorderPane layout = new javafx.scene.layout.BorderPane();
         layout.getStyleClass().add("main-bg");
-        layout.setLeft(createSidebar());
+
+        VBox shell = new VBox();
+        shell.getChildren().addAll(createTopHeader(), createTopNavigation());
 
         VBox content = switch (activeTab) {
             case "Manage Access" -> createManageAccessContent();
@@ -101,10 +103,93 @@ public class CoordinatorDashboardView {
 
         ScrollPane scrollPane = new ScrollPane(content);
         scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: #F8F9FA;");
-        layout.setCenter(scrollPane);
+        scrollPane.getStyleClass().add("dashboard-scroll");
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
+
+        shell.getChildren().add(scrollPane);
+        layout.setCenter(shell);
 
         return layout;
+    }
+
+    private HBox createTopHeader() {
+        HBox header = new HBox(16);
+        header.getStyleClass().add("portal-topbar");
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setPadding(new Insets(12, 22, 12, 22));
+
+        Label brand = new Label("SEA");
+        brand.getStyleClass().add("portal-topbar-brand");
+
+        Label school = new Label("Erhvervsakademi");
+        school.getStyleClass().add("portal-topbar-school");
+
+        Separator separator = new Separator();
+        separator.setOrientation(javafx.geometry.Orientation.VERTICAL);
+        separator.getStyleClass().add("portal-topbar-separator");
+
+        Label title = new Label("EASV Tickets - Event Coordinator Portal");
+        title.getStyleClass().add("portal-topbar-title");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button backBtn = new Button("\u2190 Back to Portal Selection");
+        backBtn.getStyleClass().add("portal-topbar-back-btn");
+        backBtn.setOnAction(e -> mainView.showPortalSelection());
+
+        header.getChildren().addAll(brand, school, separator, title, spacer, backBtn);
+        return header;
+    }
+
+    private VBox createTopNavigation() {
+        VBox wrapper = new VBox(0);
+        wrapper.setPadding(new Insets(22, 34, 0, 34));
+
+        HBox nav = new HBox(28);
+        nav.setAlignment(Pos.CENTER_LEFT);
+        nav.getStyleClass().add("portal-tab-row");
+
+        nav.getChildren().addAll(
+                createTopNavButton(
+                        "Events",
+                        "Events".equals(activeTab) || "Edit Event".equals(activeTab),
+                        "Events"
+                ),
+                createTopNavButton(
+                        "Create Event",
+                        "Create Event".equals(activeTab),
+                        "Create Event"
+                ),
+                createTopNavButton(
+                        "Manage Access",
+                        "Manage Access".equals(activeTab),
+                        "Manage Access"
+                ),
+                createTopNavButton(
+                        "Special Tickets",
+                        "Special Tickets".equals(activeTab),
+                        "Special Tickets"
+                ),
+                createTopNavButton(
+                        "Sold Tickets",
+                        "Sold Tickets".equals(activeTab),
+                        "Sold Tickets"
+                )
+        );
+
+        Separator divider = new Separator();
+        divider.getStyleClass().add("portal-tab-divider");
+
+        wrapper.getChildren().addAll(nav, divider);
+        return wrapper;
+    }
+
+    private Button createTopNavButton(String label, boolean active, String targetTab) {
+        Button button = new Button(label);
+        button.getStyleClass().add(active ? "portal-tab-btn-active" : "portal-tab-btn");
+        button.setOnAction(e -> mainView.showCoordinatorDashboard(targetTab));
+        return button;
     }
 
     private VBox createSidebar() {
@@ -169,7 +254,7 @@ public class CoordinatorDashboardView {
 
     private VBox createEventsContent() {
         VBox content = new VBox(20);
-        content.setPadding(new Insets(30, 50, 30, 50));
+        content.setPadding(new Insets(30, 34, 34, 34));
         content.setFillWidth(true);
         content.setMaxWidth(Double.MAX_VALUE);
 
@@ -187,10 +272,11 @@ public class CoordinatorDashboardView {
         HBox.setHgrow(searchBar, Priority.ALWAYS);
 
         GridPane grid = createTwoColumnGrid();
+        List<Event> visibleEvents = getVisibleCoordinatorEvents();
 
         Runnable render = () -> {
             List<Event> filteredEvents = new ArrayList<>();
-            for (Event event : getVisibleCoordinatorEvents()) {
+            for (Event event : visibleEvents) {
                 if (matchesSearch(event, searchBar.getText())) {
                     filteredEvents.add(event);
                 }
@@ -207,15 +293,16 @@ public class CoordinatorDashboardView {
 
     private VBox createManageAccessContent() {
         VBox content = new VBox(18);
-        content.setPadding(new Insets(30, 50, 30, 50));
+        content.setPadding(new Insets(30, 34, 34, 34));
 
         Label title = new Label("Manage Coordinator Access");
         title.getStyleClass().add("page-title");
 
         VBox list = new VBox(16);
         List<User> coordinators = userController.getUsersByRole("Event Coordinator");
+        List<Event> visibleEvents = getVisibleCoordinatorEvents();
 
-        for (Event event : getVisibleCoordinatorEvents()) {
+        for (Event event : visibleEvents) {
             list.getChildren().add(createAccessCard(event, coordinators));
         }
 
@@ -225,7 +312,7 @@ public class CoordinatorDashboardView {
 
     private VBox createSoldTicketsContent() {
         VBox content = new VBox(20);
-        content.setPadding(new Insets(30, 50, 30, 50));
+        content.setPadding(new Insets(30, 34, 34, 34));
 
         Label title = new Label("Sold Tickets");
         title.getStyleClass().add("page-title");
@@ -409,8 +496,7 @@ public class CoordinatorDashboardView {
         row.getStyleClass().addAll("event-card", "event-list-card");
         row.setPadding(new Insets(14));
 
-        Ticket resolvedTicket = resolveSoldTicket(ticket);
-        boolean used = ticket.isUsed() || (resolvedTicket != null && resolvedTicket.isUsed());
+        boolean used = ticket.isUsed();
 
         String customerName = displayText(ticket.getCustomerName());
         String customerEmail = displayText(ticket.getCustomerEmail());
@@ -420,9 +506,6 @@ public class CoordinatorDashboardView {
         }
 
         String ticketIdText = displayText(ticket.getTicketId());
-        if ("-".equals(ticketIdText) && resolvedTicket != null) {
-            ticketIdText = displayText(resolvedTicket.getTicketId());
-        }
 
         Label title = new Label(displayText(ticket.getEventName()));
         title.getStyleClass().add("card-title");
@@ -448,24 +531,20 @@ public class CoordinatorDashboardView {
         Label publicCode = new Label("Public Code: " + displayText(ticket.getPublicCode()));
         publicCode.getStyleClass().add("card-text");
 
-        HBox actions = buildSoldTicketActions(ticket, resolvedTicket, used, redeemStatus, redeemResultArea, refreshList);
+        HBox actions = buildSoldTicketActions(ticket, used, redeemStatus, redeemResultArea, refreshList);
 
         row.getChildren().addAll(top, details, customer, ticketId, publicCode, actions);
         return row;
     }
 
     private HBox buildSoldTicketActions(SoldTicketRecord soldTicket,
-                                        Ticket resolvedTicket,
                                         boolean used,
                                         Label redeemStatus,
                                         TextArea redeemResultArea,
                                         Runnable refreshList) {
-        boolean canPrint = resolvedTicket != null && !safeText(resolvedTicket.getSecureToken()).isBlank();
+        boolean canPrint = !safeText(soldTicket.getPublicCode()).isBlank();
         boolean canEmail = canPrint && isValidEmail(soldTicket.getCustomerEmail());
-        boolean canRedeem = resolvedTicket != null
-                && resolvedTicket.isActive()
-                && !used
-                && !safeText(resolvedTicket.getSecureToken()).isBlank();
+        boolean canRedeem = !used && canPrint;
 
         Button printPdfButton = new Button("Print PDF");
         printPdfButton.getStyleClass().add("secondary-btn");
@@ -489,32 +568,8 @@ public class CoordinatorDashboardView {
         return actions;
     }
 
-    private Ticket resolveSoldTicket(SoldTicketRecord soldTicket) {
-        if (soldTicket == null) {
-            return null;
-        }
-
-        String publicCode = safeText(soldTicket.getPublicCode()).trim();
-        if (!publicCode.isBlank()) {
-            Ticket byPublicCode = ticketController.findTicketByPublicCodeOrTicketId(publicCode);
-            if (byPublicCode != null) {
-                return byPublicCode;
-            }
-        }
-
-        String ticketId = safeText(soldTicket.getTicketId()).trim();
-        if (!ticketId.isBlank()) {
-            Ticket byTicketId = ticketController.findTicketByPublicCodeOrTicketId(ticketId);
-            if (byTicketId != null) {
-                return byTicketId;
-            }
-        }
-
-        return ticketController.buildTicketFromSoldRecord(soldTicket);
-    }
-
     private void printSoldTicketPdf(SoldTicketRecord soldTicket) {
-        Ticket ticketToPrint = resolveSoldTicket(soldTicket);
+        Ticket ticketToPrint = ticketController.buildTicketFromSoldRecord(soldTicket);
         if (ticketToPrint == null) {
             AlertHelper.showError("Print Failed", "The ticket could not be rebuilt from the sold ticket record.");
             return;
@@ -533,7 +588,7 @@ public class CoordinatorDashboardView {
             return;
         }
 
-        Ticket ticketToSend = resolveSoldTicket(soldTicket);
+        Ticket ticketToSend = ticketController.buildTicketFromSoldRecord(soldTicket);
         if (ticketToSend == null) {
             AlertHelper.showError("Email Failed", "The ticket could not be rebuilt from the sold ticket record.");
             return;
@@ -558,9 +613,6 @@ public class CoordinatorDashboardView {
         }
 
         String ticketId = displayText(soldTicket.getTicketId());
-        if ("-".equals(ticketId) && resolvedTicket != null) {
-            ticketId = displayText(resolvedTicket.getTicketId());
-        }
 
         StringBuilder builder = new StringBuilder();
         builder.append("Hi ").append(customerName).append(",\n\n");
@@ -880,7 +932,7 @@ public class CoordinatorDashboardView {
 
     private VBox createCreateEventContent() {
         VBox content = new VBox(20);
-        content.setPadding(new Insets(30, 50, 30, 50));
+        content.setPadding(new Insets(30, 34, 34, 34));
 
         Label title = new Label("Events");
         title.getStyleClass().add("page-title");
@@ -967,7 +1019,7 @@ public class CoordinatorDashboardView {
         }
 
         VBox content = new VBox(20);
-        content.setPadding(new Insets(30, 50, 30, 50));
+        content.setPadding(new Insets(30, 34, 34, 34));
 
         Label title = new Label("Events");
         title.getStyleClass().add("page-title");
@@ -1940,6 +1992,7 @@ public class CoordinatorDashboardView {
             nameField = new TextField(name);
             nameField.getStyleClass().add("input-field");
             nameField.setPromptText("Standard");
+            nameField.setMaxWidth(Double.MAX_VALUE);
             if (standardRow) {
                 nameField.getStyleClass().add("locked-field");
                 nameField.setEditable(false);
@@ -1949,9 +2002,13 @@ public class CoordinatorDashboardView {
             priceField = new TextField(price);
             priceField.getStyleClass().add("input-field");
             priceField.setPromptText("0");
+            priceField.setMaxWidth(Double.MAX_VALUE);
 
             removeButton = new Button("Remove");
             removeButton.getStyleClass().add("danger-btn");
+            removeButton.setPrefHeight(42);
+            removeButton.setMinWidth(88);
+
             if (standardRow) {
                 removeButton.setDisable(true);
                 removeButton.setVisible(false);
@@ -1960,20 +2017,39 @@ public class CoordinatorDashboardView {
 
             Label nameLabel = new Label("Ticket Type");
             nameLabel.getStyleClass().add("form-label");
+
             VBox nameBox = new VBox(6, nameLabel, nameField);
+            nameBox.setFillWidth(true);
+            nameBox.setMaxWidth(Double.MAX_VALUE);
+            nameBox.setMinWidth(0);
+            HBox.setHgrow(nameBox, Priority.ALWAYS);
 
             Label priceLabel = new Label("Price (DKK)");
             priceLabel.getStyleClass().add("form-label");
-            VBox priceBox = new VBox(6, priceLabel, priceField);
 
-            HBox row = new HBox(12, nameBox, priceBox, removeButton);
-            row.setAlignment(Pos.BOTTOM_LEFT);
-            HBox.setHgrow(nameBox, Priority.ALWAYS);
+            VBox priceBox = new VBox(6, priceLabel, priceField);
+            priceBox.setFillWidth(true);
+            priceBox.setMaxWidth(Double.MAX_VALUE);
+            priceBox.setMinWidth(0);
             HBox.setHgrow(priceBox, Priority.ALWAYS);
+
+            Label actionLabel = new Label(" ");
+            actionLabel.getStyleClass().add("form-label");
+
+            VBox actionBox = new VBox(6, actionLabel, removeButton);
+            actionBox.setAlignment(Pos.TOP_LEFT);
+            actionBox.setPrefWidth(110);
+            actionBox.setMinWidth(110);
+            actionBox.setMaxWidth(110);
+
+            HBox row = new HBox(14, nameBox, priceBox, actionBox);
+            row.setAlignment(Pos.TOP_LEFT);
+            row.setFillHeight(false);
 
             container = new VBox(row);
             container.getStyleClass().addAll("event-card", "event-list-card");
             container.setPadding(new Insets(14));
+            container.setMaxWidth(Double.MAX_VALUE);
         }
     }
 }

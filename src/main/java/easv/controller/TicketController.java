@@ -210,6 +210,12 @@ public class TicketController {
         return ticketManager.setSoldTicketUsedState(publicCode, used);
     }
 
+    public int getSoldCountForEvent(Event event) {
+        return ticketManager.getSoldCountForEvent(event);
+    }
+
+
+
     public String getEventStatus(Event event) {
         return ticketManager.getEventStatus(event);
     }

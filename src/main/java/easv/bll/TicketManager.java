@@ -341,7 +341,6 @@ public class TicketManager {
         return soldTicketDAO.searchSoldTickets(needle, limit);
     }
 
-
     public boolean deactivateSpecialTicketGroup(String ticketGroupId) {
         List<Ticket> ticketsInGroup = ticketDAO.findByGroupId(ticketGroupId);
 
@@ -537,7 +536,24 @@ public class TicketManager {
         return true;
     }
 
+    public int getSoldCountForEvent(Event event) {
+        return countSoldTicketsForEvent(event);
+    }
+
     public String getEventStatus(Event event) {
+        if (event == null) {
+            return "Available";
+        }
+
+        String storedStatus = normalizeEventStatus(event.getStatus());
+        if (!storedStatus.isBlank()) {
+            return storedStatus;
+        }
+
+        return calculateEventStatus(event);
+    }
+
+    private String calculateEventStatus(Event event) {
         if (event == null) {
             return "Available";
         }
@@ -627,64 +643,7 @@ public class TicketManager {
     }
 
     private int countSoldTicketsForEvent(Event event) {
-        backfillSoldTicketsFromLocalStore();
-
-        int count = 0;
-
-        for (SoldTicketRecord soldTicket : soldTicketDAO.getAllSoldTickets()) {
-            if (soldTicket == null || soldTicket.isSpecialTicket()) {
-                continue;
-            }
-
-            if (!soldTicket.hasCustomer()) {
-                continue;
-            }
-
-            if (matchesEvent(soldTicket, event)) {
-                count++;
-            }
-        }
-
-        return count;
-    }
-
-    private boolean matchesEvent(SoldTicketRecord soldTicket, Event event) {
-        if (soldTicket == null || event == null) {
-            return false;
-        }
-
-        boolean sameTitle = sameText(soldTicket.getEventName(), event.getTitle());
-        boolean sameLocation = sameText(soldTicket.getEventLocation(), event.getLocation());
-        boolean sameStart = sameText(soldTicket.getEventStartDateTime(), event.getStartDateTime());
-
-        if (!safeText(soldTicket.getEventLocation()).isBlank() && !safeText(soldTicket.getEventStartDateTime()).isBlank()) {
-            return sameTitle && sameLocation && sameStart;
-        }
-
-        return sameTitle;
-    }
-
-    private void backfillSoldTicketsFromLocalStore() {
-        for (Ticket ticket : ticketDAO.getAllTickets()) {
-            if (ticket == null) {
-                continue;
-            }
-
-            if (ticket.isSpecialTicket()) {
-                if (!soldTicketDAO.existsByPublicCode(ticket.getSecureToken())) {
-                    soldTicketDAO.saveSoldTicket(ticket);
-                }
-                continue;
-            }
-
-            if (!ticket.hasCustomer()) {
-                continue;
-            }
-
-            if (!soldTicketDAO.existsByPublicCode(ticket.getSecureToken())) {
-                soldTicketDAO.saveSoldTicket(ticket);
-            }
-        }
+        return soldTicketDAO.countSoldTicketsForEvent(event);
     }
 
     private void persistCustomerPurchase(Event event, Customer customer, String ticketType, int quantity) {
@@ -709,7 +668,7 @@ public class TicketManager {
             return;
         }
 
-        String status = getEventStatus(event);
+        String status = calculateEventStatus(event);
         event.setStatus(status);
         eventDAO.updateEventStatus(event, status);
     }
@@ -855,6 +814,20 @@ public class TicketManager {
         }
 
         return String.format(Locale.ENGLISH, "%.2f DKK", amount);
+    }
+
+    private String normalizeEventStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "";
+        }
+
+        return switch (status.trim().toLowerCase(Locale.ENGLISH)) {
+            case "sold out" -> "Sold Out";
+            case "fast selling", "selling fast" -> "Selling Fast";
+            case "available" -> "Available";
+            case "archived" -> "Archived";
+            default -> status.trim();
+        };
     }
 
     private boolean sameText(String first, String second) {
