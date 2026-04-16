@@ -373,13 +373,11 @@
 .dashboard-select,
 .dashboard-picker {
     -fx-background-color: white;
-    -fx-background-insets: 0;
-    -fx-border-color: #E2E8F0;
-    -fx-border-width: 1px;
-    -fx-border-radius: 18px;
-    -fx-background-radius: 18px;
+    -fx-border-color: #CBD5E0;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
     -fx-font-size: 14px;
-    -fx-padding: 4px 12px 4px 16px;
+    -fx-padding: 6px 10px;
 }
 
 .dashboard-select:focused,
@@ -390,13 +388,13 @@
 .dashboard-select > .list-cell {
     -fx-background-color: transparent;
     -fx-text-fill: #1A202C;
-    -fx-padding: 10px 8px 10px 2px;
+    -fx-padding: 8px 6px 8px 6px;
 }
 
 .dashboard-select > .arrow-button,
 .dashboard-picker > .arrow-button {
     -fx-background-color: transparent;
-    -fx-padding: 0 12px 0 8px;
+    -fx-background-radius: 0 8px 8px 0;
 }
 
 .dashboard-select > .arrow-button > .arrow,
@@ -409,9 +407,121 @@
     -fx-border-color: transparent;
     -fx-text-fill: #1A202C;
     -fx-font-size: 14px;
-    -fx-padding: 0;
 }
 
 .dashboard-picker:focused > .text-field {
     -fx-border-color: transparent;
 }
+
+/* --- SPECIAL TICKET RADIO BUTTONS --- */
+.choice-radio {
+    -fx-font-size: 14px;
+    -fx-text-fill: #2D3748;
+}
+
+.choice-radio .radio {
+    -fx-background-color: white;
+    -fx-border-color: #CBD5E0;
+    -fx-border-radius: 999px;
+    -fx-background-radius: 999px;
+}
+
+.choice-radio:selected .radio {
+    -fx-border-color: #D9705A;
+}
+
+.choice-radio:selected .dot {
+    -fx-background-color: #D9705A;
+    -fx-background-insets: 0;
+    -fx-background-radius: 999px;
+}
+
+/* --- ADMIN / COORD TOP SHELL --- */
+.portal-topbar {
+    -fx-background-color: #1A202C;
+}
+
+.portal-topbar-brand {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+}
+
+.portal-topbar-school {
+    -fx-font-size: 12px;
+    -fx-text-fill: white;
+}
+
+.portal-topbar-separator {
+    -fx-opacity: 0.35;
+}
+
+.portal-topbar-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+}
+
+.portal-topbar-back-btn {
+    -fx-background-color: white;
+    -fx-text-fill: #334155;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-border-color: #D9E2EC;
+    -fx-border-width: 1px;
+    -fx-border-radius: 10px;
+    -fx-background-radius: 10px;
+    -fx-padding: 10px 18px;
+    -fx-cursor: hand;
+}
+
+.portal-topbar-back-btn:hover {
+    -fx-background-color: #F8FAFC;
+}
+
+.portal-tab-row {
+    -fx-padding: 0 0 10 0;
+}
+
+.portal-tab-divider {
+    -fx-opacity: 0.7;
+}
+
+.portal-tab-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #334155;
+    -fx-font-size: 14px;
+    -fx-padding: 10px 0 10px 0;
+    -fx-cursor: hand;
+    -fx-border-color: transparent transparent #E2E8F0 transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+
+.portal-tab-btn:hover {
+    -fx-text-fill: #E46B58;
+}
+
+.portal-tab-btn-active {
+    -fx-background-color: transparent;
+    -fx-text-fill: #E46B58;
+    -fx-font-size: 14px;
+    -fx-padding: 10px 0 10px 0;
+    -fx-cursor: hand;
+    -fx-border-color: transparent transparent #E46B58 transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+
+.dashboard-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+}
+
+.dashboard-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
