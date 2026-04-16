@@ -15,6 +15,7 @@ import javafx.scene.control.PasswordField;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
@@ -46,9 +47,11 @@ public class AdminDashboardView {
     }
 
     public Parent getView() {
-        javafx.scene.layout.BorderPane layout = new javafx.scene.layout.BorderPane();
+        BorderPane layout = new BorderPane();
         layout.getStyleClass().add("main-bg");
-        layout.setLeft(createSidebar());
+
+        VBox shell = new VBox();
+        shell.getChildren().addAll(createTopHeader(), createTopNavigation());
 
         VBox content = switch (activeTab) {
             case "Events" -> createEventsContent();
@@ -60,60 +63,85 @@ public class AdminDashboardView {
 
         ScrollPane scrollPane = new ScrollPane(content);
         scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: #F8F9FA;");
-        layout.setCenter(scrollPane);
+        scrollPane.getStyleClass().add("dashboard-scroll");
+        VBox.setVgrow(scrollPane, Priority.ALWAYS);
 
+        shell.getChildren().add(scrollPane);
+        layout.setCenter(shell);
         return layout;
     }
 
-    private VBox createSidebar() {
-        VBox sidebar = new VBox(20);
-        sidebar.getStyleClass().add("sidebar");
-        sidebar.setPrefWidth(220);
-        sidebar.setPadding(new Insets(20));
+    private HBox createTopHeader() {
+        HBox header = new HBox(16);
+        header.getStyleClass().add("portal-topbar");
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.setPadding(new Insets(12, 22, 12, 22));
 
-        Label logo = new Label("Admin Portal");
-        logo.getStyleClass().add("sidebar-logo");
+        Label brand = new Label("SEA");
+        brand.getStyleClass().add("portal-topbar-brand");
 
-        Button usersBtn = createMenuBtn(
-                "\uD83D\uDC65 Users",
-                "Users".equals(activeTab) || "Coordinators".equals(activeTab),
-                e -> mainView.showAdminDashboard("Users")
-        );
+        Label school = new Label("Erhvervsakademi");
+        school.getStyleClass().add("portal-topbar-school");
 
-        Button createUserBtn = createMenuBtn(
-                "+ Create User",
-                "Create User".equals(activeTab) || "Create Coordinator".equals(activeTab),
-                e -> mainView.showAdminDashboard("Create User")
-        );
+        Separator separator = new Separator();
+        separator.setOrientation(javafx.geometry.Orientation.VERTICAL);
+        separator.getStyleClass().add("portal-topbar-separator");
 
-        Button manageAccessBtn = createMenuBtn(
-                "\uD83D\uDD10 Manage Access",
-                "Manage Access".equals(activeTab),
-                e -> mainView.showAdminDashboard("Manage Access")
-        );
-
-        Button eventsBtn = createMenuBtn(
-                "\uD83D\uDCC5 Events",
-                "Events".equals(activeTab),
-                e -> mainView.showAdminDashboard("Events")
-        );
+        Label title = new Label("EASV Tickets - Admin Portal");
+        title.getStyleClass().add("portal-topbar-title");
 
         Region spacer = new Region();
-        VBox.setVgrow(spacer, Priority.ALWAYS);
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Button logoutBtn = new Button("\uD83D\uDEAA Logout");
-        logoutBtn.getStyleClass().add("sidebar-logout");
-        logoutBtn.setMaxWidth(Double.MAX_VALUE);
-        logoutBtn.setOnAction(e -> mainView.showPortalSelection());
+        Button backBtn = new Button("\u2190 Back to Portal Selection");
+        backBtn.getStyleClass().add("portal-topbar-back-btn");
+        backBtn.setOnAction(e -> mainView.showPortalSelection());
 
-        sidebar.getChildren().addAll(logo, usersBtn, createUserBtn, manageAccessBtn, eventsBtn, spacer, logoutBtn);
-        return sidebar;
+        header.getChildren().addAll(brand, school, separator, title, spacer, backBtn);
+        return header;
+    }
+
+    private VBox createTopNavigation() {
+        VBox wrapper = new VBox(0);
+        wrapper.setPadding(new Insets(22, 34, 0, 34));
+
+        HBox nav = new HBox(28);
+        nav.setAlignment(Pos.CENTER_LEFT);
+        nav.getStyleClass().add("portal-tab-row");
+
+        nav.getChildren().addAll(
+                createTopNavButton("Users", "Users".equals(activeTab) || "Coordinators".equals(activeTab)),
+                createTopNavButton("Create User", "Create User".equals(activeTab) || "Create Coordinator".equals(activeTab)),
+                createTopNavButton("Manage Access", "Manage Access".equals(activeTab)),
+                createTopNavButton("Events", "Events".equals(activeTab))
+        );
+
+        Separator divider = new Separator();
+        divider.getStyleClass().add("portal-tab-divider");
+
+        wrapper.getChildren().addAll(nav, divider);
+        return wrapper;
+    }
+
+    private Button createTopNavButton(String label, boolean active) {
+        Button button = new Button(label);
+        button.getStyleClass().add(active ? "portal-tab-btn-active" : "portal-tab-btn");
+
+        switch (label) {
+            case "Users" -> button.setOnAction(e -> mainView.showAdminDashboard("Users"));
+            case "Create User" -> button.setOnAction(e -> mainView.showAdminDashboard("Create User"));
+            case "Manage Access" -> button.setOnAction(e -> mainView.showAdminDashboard("Manage Access"));
+            case "Events" -> button.setOnAction(e -> mainView.showAdminDashboard("Events"));
+            default -> {
+            }
+        }
+
+        return button;
     }
 
     private VBox createUsersContent() {
         VBox content = new VBox(20);
-        content.setPadding(new Insets(30, 50, 30, 50));
+        content.setPadding(new Insets(30, 34, 34, 34));
         content.setFillWidth(true);
         content.setMaxWidth(Double.MAX_VALUE);
         showUserList(content);
@@ -138,7 +166,7 @@ public class AdminDashboardView {
         roleFilter.setPrefWidth(220);
         roleFilter.setPrefHeight(46);
 
-        HBox filters = new HBox(12, searchBar, roleFilter);
+        HBox filters = new HBox(16, searchBar, roleFilter);
         filters.setAlignment(Pos.CENTER_LEFT);
         filters.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(searchBar, Priority.ALWAYS);
@@ -261,7 +289,7 @@ public class AdminDashboardView {
 
     private VBox createUserCreateContent() {
         VBox content = new VBox(20);
-        content.setPadding(new Insets(30, 50, 30, 50));
+        content.setPadding(new Insets(30, 34, 34, 34));
         showUserCreateForm(content);
         return content;
     }
@@ -312,7 +340,7 @@ public class AdminDashboardView {
 
     private VBox createManageAccessContent() {
         VBox content = new VBox(18);
-        content.setPadding(new Insets(30, 50, 30, 50));
+        content.setPadding(new Insets(30, 34, 34, 34));
 
         Label title = new Label("Manage Coordinator Access");
         title.getStyleClass().add("page-title");
@@ -386,7 +414,7 @@ public class AdminDashboardView {
 
     private VBox createEventsContent() {
         VBox content = new VBox(20);
-        content.setPadding(new Insets(30, 50, 30, 50));
+        content.setPadding(new Insets(30, 34, 34, 34));
         content.setFillWidth(true);
         content.setMaxWidth(Double.MAX_VALUE);
 
@@ -704,6 +732,9 @@ public class AdminDashboardView {
 
     private VBox fieldBox(String labelText, javafx.scene.Node field) {
         VBox form = new VBox(10);
+        form.setFillWidth(true);
+        form.setMaxWidth(Double.MAX_VALUE);
+
         Label label = new Label(labelText);
         label.getStyleClass().add("form-label");
 
@@ -788,16 +819,6 @@ public class AdminDashboardView {
                 && safeText(currentUser.getRole()).equalsIgnoreCase(safeText(user.getRole()));
     }
 
-    private Button createMenuBtn(String text, boolean isActive,
-                                 javafx.event.EventHandler<javafx.event.ActionEvent> action) {
-        Button btn = new Button(text);
-        btn.getStyleClass().add(isActive ? "sidebar-menu-btn-active" : "sidebar-menu-btn");
-        btn.setMaxWidth(Double.MAX_VALUE);
-        btn.setAlignment(Pos.CENTER_LEFT);
-        btn.setOnAction(action);
-        return btn;
-    }
-
     private String safeText(String value) {
         return value == null ? "" : value.trim();
     }
@@ -805,7 +826,7 @@ public class AdminDashboardView {
     private String statusStyleClass(String status) {
         return switch (status) {
             case "Sold Out" -> "status-sold";
-            case "Fast Selling" -> "status-fast";
+            case "Fast Selling", "Selling Fast" -> "status-fast";
             default -> "status-avail";
         };
     }
