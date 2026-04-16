@@ -1514,7 +1514,7 @@ public class CoordinatorDashboardView {
     private String statusStyleClass(String status) {
         return switch (status) {
             case "Sold Out" -> "status-sold";
-            case "Fast Selling" -> "status-fast";
+            case "Fast Selling", "Selling Fast" -> "status-fast";
             default -> "status-avail";
         };
     }

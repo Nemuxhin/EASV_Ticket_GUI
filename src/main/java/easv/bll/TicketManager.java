@@ -556,7 +556,7 @@ public class TicketManager {
         int remaining = capacity - soldCount;
         int fastSellingThreshold = Math.max(10, (int) Math.ceil(capacity * 0.20));
 
-        return remaining <= fastSellingThreshold ? "Fast Selling" : "Available";
+        return remaining <= fastSellingThreshold ? "Selling Fast" : "Available";
     }
 
     private boolean setUsageState(String lookupValue, boolean used) {
