@@ -723,24 +723,9 @@ public class TicketSalesView {
     }
 
     private int getSoldCountForEvent() {
-        int count = 0;
-
-        for (SoldTicketRecord soldTicket : ticketController.getSoldTickets()) {
-            if (soldTicket == null || soldTicket.isSpecialTicket()) {
-                continue;
-            }
-
-            if (!soldTicket.hasCustomer()) {
-                continue;
-            }
-
-            if (matchesSoldTicketToEvent(soldTicket)) {
-                count++;
-            }
-        }
-
-        return count;
+        return ticketController.getSoldCountForEvent(event);
     }
+
 
     private int getEventCapacityValue() {
         if (event == null || event.getCapacity() == null) {

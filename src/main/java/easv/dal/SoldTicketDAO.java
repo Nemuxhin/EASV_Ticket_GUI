@@ -130,6 +130,74 @@ public class SoldTicketDAO {
         return records;
     }
 
+    public int countSoldTicketsForEvent(easv.be.Event event) {
+        if (event == null) {
+            return 0;
+        }
+
+        ensureTableExists();
+
+        String eventName = blankToNull(event.getTitle());
+        if (eventName == null) {
+            return 0;
+        }
+
+        String eventLocation = blankToNull(event.getLocation());
+        String eventStartDateTime = blankToNull(event.getStartDateTime());
+
+        if (eventLocation == null || eventStartDateTime == null) {
+            return countSoldTicketsByTitle(eventName);
+        }
+
+        String sql = """
+            SELECT COUNT(*)
+            FROM SoldTickets
+            WHERE IsSpecialTicket = 0
+              AND EventName = ?
+              AND (
+                    (EventLocation = ? AND EventStartDateTime = ?)
+                    OR ISNULL(EventLocation, '') = ''
+                    OR ISNULL(EventStartDateTime, '') = ''
+              )
+            """;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, eventName);
+            statement.setString(2, eventLocation);
+            statement.setString(3, eventStartDateTime);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getInt(1) : 0;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not count sold tickets for event.", ex);
+        }
+    }
+
+    private int countSoldTicketsByTitle(String eventName) {
+        String sql = """
+            SELECT COUNT(*)
+            FROM SoldTickets
+            WHERE IsSpecialTicket = 0
+              AND EventName = ?
+            """;
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, eventName);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next() ? resultSet.getInt(1) : 0;
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not count sold tickets by title.", ex);
+        }
+    }
+
+
     public List<SoldTicketRecord> getRecentSoldTickets(int limit) {
         ensureTableExists();
 
