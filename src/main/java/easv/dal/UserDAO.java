@@ -2,39 +2,23 @@ package easv.dal;
 
 import easv.be.User;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserDAO {
 
     public List<User> getAllUsers() {
-        String sql = "SELECT Names, Username, Password, UserEmail, Role FROM Users";
+        String sql = "SELECT Names, Username, Password, UserEmail, Role FROM Users ORDER BY Role, Names";
         return queryUsers(sql);
     }
 
     public List<User> getUsersByRole(String role) {
-        String sql = "SELECT Names, Username, Password, UserEmail, Role FROM Users WHERE Role = ?";
-        List<User> users = new ArrayList<>();
-
-        try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-
-            statement.setString(1, role);
-
-            try (ResultSet resultSet = statement.executeQuery()) {
-                while (resultSet.next()) {
-                    users.add(mapUser(resultSet));
-                }
-            }
-        } catch (SQLException ex) {
-            throw new RuntimeException("Could not load users by role.", ex);
-        }
-
-        return users;
+        String sql = "SELECT Names, Username, Password, UserEmail, Role FROM Users WHERE Role = ? ORDER BY Names";
+        return queryUsers(sql, role);
     }
 
     public void addUser(User user) {
@@ -55,9 +39,9 @@ public class UserDAO {
     }
 
     public void deleteUser(User user) {
-        String userIdSql = "SELECT TOP 1 UserID FROM Users WHERE Username = ?";
+        String userIdSql = "SELECT TOP 1 UserID FROM Users WHERE Username = ? AND Role = ?";
         String deleteAssignmentsSql = "DELETE FROM UserEvent WHERE UserID = ?";
-        String deleteUserSql = "DELETE FROM Users WHERE Username = ?";
+        String deleteUserSql = "DELETE FROM Users WHERE Username = ? AND Role = ?";
 
         try (Connection connection = DatabaseConnection.getConnection()) {
             connection.setAutoCommit(false);
@@ -67,6 +51,7 @@ public class UserDAO {
 
                 try (PreparedStatement userIdStatement = connection.prepareStatement(userIdSql)) {
                     userIdStatement.setString(1, user.getUsername());
+                    userIdStatement.setString(2, user.getRole());
 
                     try (ResultSet resultSet = userIdStatement.executeQuery()) {
                         if (resultSet.next()) {
@@ -84,6 +69,7 @@ public class UserDAO {
 
                 try (PreparedStatement deleteUserStatement = connection.prepareStatement(deleteUserSql)) {
                     deleteUserStatement.setString(1, user.getUsername());
+                    deleteUserStatement.setString(2, user.getRole());
                     deleteUserStatement.executeUpdate();
                 }
 
@@ -97,10 +83,10 @@ public class UserDAO {
         }
     }
 
-    public void updateUser(User user, String previousUsername) {
+    public void updateUser(User user, String previousUsername, String previousRole) {
         String sql = """
                 UPDATE Users
-                SET Names = ?, Username = ?, Password = ?, UserEmail = ?
+                SET Names = ?, Username = ?, Password = ?, UserEmail = ?, Role = ?
                 WHERE Username = ? AND Role = ?
                 """;
 
@@ -111,11 +97,40 @@ public class UserDAO {
             statement.setString(2, user.getUsername());
             statement.setString(3, user.getPassword());
             statement.setString(4, user.getEmail());
-            statement.setString(5, previousUsername);
-            statement.setString(6, user.getRole());
+            statement.setString(5, user.getRole());
+            statement.setString(6, previousUsername);
+            statement.setString(7, previousRole);
             statement.executeUpdate();
         } catch (SQLException ex) {
             throw new RuntimeException("Could not update user.", ex);
+        }
+    }
+
+    public boolean usernameExists(String username, String excludedUsername) {
+        if (username == null || username.isBlank()) {
+            return false;
+        }
+
+        String sql;
+        if (excludedUsername == null || excludedUsername.isBlank()) {
+            sql = "SELECT 1 FROM Users WHERE Username = ?";
+        } else {
+            sql = "SELECT 1 FROM Users WHERE Username = ? AND Username <> ?";
+        }
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setString(1, username.trim());
+            if (excludedUsername != null && !excludedUsername.isBlank()) {
+                statement.setString(2, excludedUsername.trim());
+            }
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                return resultSet.next();
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not validate username uniqueness.", ex);
         }
     }
 
@@ -145,15 +160,20 @@ public class UserDAO {
         return findUser(username, password, role) != null;
     }
 
-    private List<User> queryUsers(String sql) {
+    private List<User> queryUsers(String sql, Object... parameters) {
         List<User> users = new ArrayList<>();
 
         try (Connection connection = DatabaseConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql);
-             ResultSet resultSet = statement.executeQuery()) {
+             PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            while (resultSet.next()) {
-                users.add(mapUser(resultSet));
+            for (int i = 0; i < parameters.length; i++) {
+                statement.setObject(i + 1, parameters[i]);
+            }
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    users.add(mapUser(resultSet));
+                }
             }
         } catch (SQLException ex) {
             throw new RuntimeException("Could not load users.", ex);

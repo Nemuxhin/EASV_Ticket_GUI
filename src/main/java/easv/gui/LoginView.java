@@ -1,5 +1,6 @@
 package easv.gui;
 
+import easv.be.User;
 import easv.controller.LoginController;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -59,11 +60,11 @@ public class LoginView {
         formBox.setMaxWidth(Double.MAX_VALUE);
         formBox.setPadding(new Insets(8, 0, 0, 0));
 
-        Label userLbl = new Label("Email");
+        Label userLbl = new Label("Username");
         userLbl.getStyleClass().add("form-label");
 
         TextField userField = new TextField();
-        userField.setPromptText(getEmailPlaceholder());
+        userField.setPromptText(getUsernamePlaceholder());
         userField.setMaxWidth(Double.MAX_VALUE);
         userField.getStyleClass().addAll("input-field", "portal-input");
 
@@ -93,19 +94,21 @@ public class LoginView {
         backBtn.setOnAction(e -> mainView.showPortalSelection());
 
         Runnable doLogin = () -> {
-            boolean validLogin = loginController.isValid(
+            User user = loginController.authenticate(
                     userField.getText().trim(),
                     passField.getText(),
                     role
             );
 
-            if (!validLogin) {
-                AlertHelper.showError("Login Failed", "The email, password, or role is incorrect.");
+            if (user == null) {
+                AlertHelper.showError("Login Failed", "The username, password, or role is incorrect.");
                 return;
             }
 
+            mainView.setCurrentUser(user);
+
             if ("Admin".equals(role)) {
-                mainView.showAdminDashboard("Coordinators");
+                mainView.showAdminDashboard("Users");
             } else {
                 mainView.showCoordinatorDashboard("Events");
             }
@@ -138,8 +141,8 @@ public class LoginView {
         return "Admin".equals(role) ? "Admin Portal" : "Event Coordinator Portal";
     }
 
-    private String getEmailPlaceholder() {
-        return "Admin".equals(role) ? "admin@easv.dk" : "your.email@easv.dk";
+    private String getUsernamePlaceholder() {
+        return "Admin".equals(role) ? "admin" : "coordinator01";
     }
 
     private StackPane createPortalIcon() {

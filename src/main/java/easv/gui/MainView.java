@@ -1,6 +1,7 @@
 package easv.gui;
 
 import easv.be.Event;
+import easv.be.User;
 import easv.controller.EventController;
 import easv.controller.LoginController;
 import easv.controller.UserController;
@@ -12,10 +13,12 @@ public class MainView {
 
     private final StackPane rootPane;
     private Event editingEvent;
+    private User currentUser;
 
     private final LoginController loginController;
     private final EventController eventController;
     private final UserController userController;
+
     public MainView() {
         rootPane = new StackPane();
 
@@ -35,6 +38,7 @@ public class MainView {
     }
 
     public void showPortalSelection() {
+        clearCurrentUser();
         setContent(new PortalLoginView(this).getView());
     }
 
@@ -63,11 +67,27 @@ public class MainView {
         editingEvent = null;
     }
 
+    public User getCurrentUser() {
+        return currentUser;
+    }
+
+    public void setCurrentUser(User currentUser) {
+        this.currentUser = currentUser;
+    }
+
+    public void clearCurrentUser() {
+        this.currentUser = null;
+    }
+
     public void showTicketSales(Event selectedEvent) {
         setContent(new TicketSalesView(this, eventController, selectedEvent).getView());
     }
 
     public void showSoldTickets(String returnRole) {
         setContent(new SoldTicketsView(this, returnRole).getView());
+    }
+
+    public void showTicketScanner(Event selectedEvent) {
+        setContent(new TicketScanView(this, selectedEvent).getView());
     }
 }

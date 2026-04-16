@@ -370,3 +370,70 @@
 .portal-secondary-btn:hover {
     -fx-background-color: #F8FAFC;
 }
+
+/* --- DASHBOARD DROPDOWNS / DATE PICKERS --- */
+.dashboard-select,
+.dashboard-picker {
+    -fx-background-color: white;
+    -fx-border-color: #CBD5E0;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+    -fx-font-size: 14px;
+    -fx-padding: 6px 10px;
+}
+
+.dashboard-select:focused,
+.dashboard-picker:focused {
+    -fx-border-color: #D9705A;
+}
+
+.dashboard-select > .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #1A202C;
+    -fx-padding: 8px 6px 8px 6px;
+}
+
+.dashboard-select > .arrow-button,
+.dashboard-picker > .arrow-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 0 8px 8px 0;
+}
+
+.dashboard-select > .arrow-button > .arrow,
+.dashboard-picker > .arrow-button > .arrow {
+    -fx-background-color: #718096;
+}
+
+.dashboard-picker > .text-field {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #1A202C;
+    -fx-font-size: 14px;
+}
+
+.dashboard-picker:focused > .text-field {
+    -fx-border-color: transparent;
+}
+
+/* --- SPECIAL TICKET RADIO BUTTONS --- */
+.choice-radio {
+    -fx-font-size: 14px;
+    -fx-text-fill: #2D3748;
+}
+
+.choice-radio .radio {
+    -fx-background-color: white;
+    -fx-border-color: #CBD5E0;
+    -fx-border-radius: 999px;
+    -fx-background-radius: 999px;
+}
+
+.choice-radio:selected .radio {
+    -fx-border-color: #D9705A;
+}
+
+.choice-radio:selected .dot {
+    -fx-background-color: #D9705A;
+    -fx-background-insets: 0;
+    -fx-background-radius: 999px;
+}
