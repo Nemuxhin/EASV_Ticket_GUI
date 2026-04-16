@@ -1,15 +1,12 @@
 package easv.gui;
 
 import easv.be.Event;
+import easv.be.SpecialTicketRecord;
 import easv.be.Ticket;
 import easv.bll.BarcodeGenerator;
 import easv.bll.QrCodeGenerator;
 import easv.controller.EventController;
 import easv.controller.TicketController;
-import easv.bll.MailClientService;
-import easv.bll.TicketPdfService;
-import javafx.scene.control.TextInputDialog;
-import java.nio.file.Path;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -35,8 +32,6 @@ import javafx.scene.layout.VBox;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -49,8 +44,6 @@ public class CreateSpecialTicketView {
     private final TicketController ticketController;
     private final QrCodeGenerator qrCodeGenerator;
     private final BarcodeGenerator barcodeGenerator;
-    private final TicketPdfService ticketPdfService;
-    private final MailClientService mailClientService;
 
     public CreateSpecialTicketView(MainView mainView) {
         this.mainView = mainView;
@@ -58,8 +51,6 @@ public class CreateSpecialTicketView {
         this.ticketController = new TicketController();
         this.qrCodeGenerator = new QrCodeGenerator();
         this.barcodeGenerator = new BarcodeGenerator();
-        this.ticketPdfService = new TicketPdfService();
-        this.mailClientService = new MailClientService();
     }
 
     public Parent getView() {
@@ -73,13 +64,13 @@ public class CreateSpecialTicketView {
         Label title = new Label("Create Special Ticket");
         title.getStyleClass().add("page-title");
 
-        Button backButton = new Button("← Back to Events");
+        Button backButton = new Button("\u2190 Back to Events");
         backButton.getStyleClass().add("primary-btn");
         backButton.setOnAction(e -> mainView.showCoordinatorDashboard("Events"));
 
         topBar.getChildren().addAll(title, grow(), backButton);
 
-        Label subtitle = new Label("Generate custom special tickets with unique benefits for your events.");
+        Label subtitle = new Label("Save special ticket templates here, then generate real one-time tickets from the saved cards below.");
         subtitle.getStyleClass().add("card-text");
 
         TextField ticketNameField = new TextField();
@@ -115,23 +106,23 @@ public class CreateSpecialTicketView {
         allEventsRadio.setToggleGroup(appliesToGroup);
         allEventsRadio.getStyleClass().add("choice-radio");
 
-
         VBox appliesBox = new VBox(10, thisEventOnlyRadio, allEventsRadio);
 
         ComboBox<String> eventComboBox = new ComboBox<>();
         eventComboBox.setItems(FXCollections.observableArrayList(
-                eventController.getEvents().stream().map(Event::getTitle).collect(Collectors.toList())
+                eventController.getEventsForUser(mainView.getCurrentUser())
+                        .stream()
+                        .map(Event::getTitle)
+                        .collect(Collectors.toList())
         ));
         eventComboBox.setPromptText("Select an event");
         eventComboBox.setMaxWidth(Double.MAX_VALUE);
         eventComboBox.getStyleClass().add("dashboard-select");
 
-
         DatePicker validUntilPicker = new DatePicker();
         validUntilPicker.setPromptText("dd/mm/yyyy");
         validUntilPicker.setMaxWidth(Double.MAX_VALUE);
         validUntilPicker.getStyleClass().add("dashboard-picker");
-
         validUntilPicker.setDayCellFactory(picker -> new DateCell() {
             @Override
             public void updateItem(LocalDate item, boolean empty) {
@@ -215,20 +206,13 @@ public class CreateSpecialTicketView {
                     ? "All events"
                     : safeText(eventComboBox.getValue(), "Select an event");
 
-            String priceText = formatPreviewPrice(priceField.getText());
-
             previewName.setText(titleText);
             previewBenefit.setText(benefitText);
             previewValidFor.setText(eventText);
-            previewPrice.setText(priceText);
+            previewPrice.setText(formatPreviewPrice(priceField.getText()));
+            previewNotes.setText(buildPreviewNotes(descriptionText, validUntilPicker.getValue()));
 
-            String validUntilText = validUntilPicker.getValue() != null
-                    ? " Valid until " + validUntilPicker.getValue() + "."
-                    : "";
-
-            previewNotes.setText(descriptionText + validUntilText);
-
-            String previewTokenSource = titleText + "|" + eventText + "|" + priceText + "|" + benefitText;
+            String previewTokenSource = titleText + "|" + eventText + "|" + benefitText + "|" + previewPrice.getText();
             String previewToken = UUID.nameUUIDFromBytes(previewTokenSource.getBytes(StandardCharsets.UTF_8)).toString();
 
             qrPreview.setImage(bytesToImage(qrCodeGenerator.generateQrCode(previewToken)));
@@ -253,25 +237,24 @@ public class CreateSpecialTicketView {
         refreshPreview.run();
 
         VBox existingTicketsList = new VBox(12);
-        Runnable refreshExistingTickets = () -> populateExistingSpecialTickets(existingTicketsList, refreshPreview, refreshExistingTicketsPlaceholder());
 
-        Button generateButton = new Button("+ Generate Special Tickets");
-        generateButton.getStyleClass().add("primary-btn");
-        generateButton.setMaxWidth(Double.MAX_VALUE);
-        generateButton.setOnAction(e -> {
-            boolean generated = handleGenerate(
+        Button saveButton = new Button("+ Save Special Ticket");
+        saveButton.getStyleClass().add("primary-btn");
+        saveButton.setMaxWidth(Double.MAX_VALUE);
+        saveButton.setOnAction(e -> {
+            boolean saved = handleSave(
                     ticketNameField,
                     descriptionArea,
                     benefitField,
                     priceField,
                     quantityField,
-                    allEventsRadio,
+                    allEventsRadio.isSelected(),
                     eventComboBox,
                     validUntilPicker
             );
 
-            if (generated) {
-                populateExistingSpecialTickets(existingTicketsList, refreshPreview, refreshExistingTickets);
+            if (saved) {
+                mainView.showCoordinatorDashboard("Special Tickets");
             }
         });
 
@@ -283,12 +266,12 @@ public class CreateSpecialTicketView {
                 createField("Ticket Value / Benefit", benefitField),
                 buildTwoColumnFields(
                         createField("Price (DKK) *", priceField),
-                        createField("Quantity to Generate *", quantityField)
+                        createField("Quantity *", quantityField)
                 ),
                 createField("Applies To", appliesBox),
                 createField("Event", eventComboBox),
                 createField("Valid Until (Optional)", validUntilPicker),
-                generateButton
+                saveButton
         );
         leftCard.getStyleClass().add("event-card");
         leftCard.setPadding(new Insets(20));
@@ -296,7 +279,7 @@ public class CreateSpecialTicketView {
         VBox rightCard = new VBox(
                 14,
                 sectionTitle("Live Preview"),
-                styleLabel("Preview of the generated special ticket", "card-text"),
+                styleLabel("Preview of the special ticket template", "card-text"),
                 previewCard
         );
         rightCard.getStyleClass().add("event-card");
@@ -309,13 +292,13 @@ public class CreateSpecialTicketView {
         VBox existingCard = new VBox(
                 14,
                 sectionTitle("Existing Special Tickets"),
-                styleLabel("See quantity remaining, sold out status, and remove active special ticket batches.", "card-text"),
+                styleLabel("Save the template above, then generate real one-time tickets from the cards below.", "card-text"),
                 existingTicketsList
         );
         existingCard.getStyleClass().add("event-card");
         existingCard.setPadding(new Insets(20));
 
-        populateExistingSpecialTickets(existingTicketsList, refreshPreview, refreshExistingTickets);
+        populateExistingSpecialTickets(existingTicketsList);
 
         page.getChildren().addAll(topBar, subtitle, content, existingCard);
 
@@ -325,32 +308,26 @@ public class CreateSpecialTicketView {
         return scrollPane;
     }
 
-    private boolean handleGenerate(TextField ticketNameField,
-                                   TextArea descriptionArea,
-                                   TextField benefitField,
-                                   TextField priceField,
-                                   TextField quantityField,
-                                   RadioButton allEventsRadio,
-                                   ComboBox<String> eventComboBox,
-                                   DatePicker validUntilPicker) {
+    private boolean handleSave(TextField ticketNameField,
+                               TextArea descriptionArea,
+                               TextField benefitField,
+                               TextField priceField,
+                               TextField quantityField,
+                               boolean validForAllEvents,
+                               ComboBox<String> eventComboBox,
+                               DatePicker validUntilPicker) {
         String ticketName = ticketNameField.getText().trim();
         String description = descriptionArea.getText().trim();
         String benefit = benefitField.getText().trim();
-        boolean validForAllEvents = allEventsRadio.isSelected();
-        Event selectedEvent = findEventByTitle(eventComboBox.getValue());
+        String selectedEventTitle = eventComboBox.getValue();
 
         if (ticketName.isBlank()) {
             AlertHelper.showError("Invalid Special Ticket", "Ticket name is required.");
             return false;
         }
 
-        if (!validForAllEvents && selectedEvent == null) {
+        if (!validForAllEvents && (selectedEventTitle == null || selectedEventTitle.isBlank())) {
             AlertHelper.showError("Invalid Special Ticket", "Please select an event.");
-            return false;
-        }
-
-        if (validUntilPicker.getValue() != null && validUntilPicker.getValue().isBefore(LocalDate.now())) {
-            AlertHelper.showError("Invalid Special Ticket", "Valid until cannot be in the past.");
             return false;
         }
 
@@ -378,123 +355,120 @@ public class CreateSpecialTicketView {
             return false;
         }
 
-        String ticketDescription = benefit.isBlank() ? description : benefit;
-        if (ticketDescription.isBlank()) {
-            ticketDescription = "Special ticket";
-        }
+        String databaseDescription = mergeDescriptionAndMeta(description, benefit, validUntilPicker.getValue());
 
-        String eventNotes = buildEventNotes(description, validUntilPicker.getValue());
-
-        String eventTitle = validForAllEvents ? null : selectedEvent.getTitle();
-        String eventStartDateTime = validForAllEvents ? "" : selectedEvent.getStartDateTime();
-        String eventEndDateTime = validForAllEvents ? "" : selectedEvent.getEndDateTime();
-        String eventLocation = validForAllEvents ? "" : selectedEvent.getLocation();
-        String eventLocationGuidance = validForAllEvents ? "" : selectedEvent.getLocationGuidance();
-        String combinedNotes = validForAllEvents
-                ? eventNotes
-                : mergeNotes(selectedEvent.getNotes(), eventNotes);
-
-        List<Ticket> tickets = ticketController.createSpecialTickets(
-                eventTitle,
-                eventStartDateTime,
-                eventEndDateTime,
-                eventLocation,
-                eventLocationGuidance,
-                combinedNotes,
+        ticketController.createSpecialTicketDefinition(
+                validForAllEvents ? null : selectedEventTitle,
                 ticketName,
-                ticketDescription,
+                databaseDescription,
                 formatPrice(priceValue),
-                validForAllEvents,
-                quantity
+                quantity,
+                validForAllEvents
         );
 
-        showSuccess(tickets, ticketName, validForAllEvents ? "All events" : selectedEvent.getTitle());
         return true;
     }
 
-    private void populateExistingSpecialTickets(VBox listBox,
-                                                Runnable refreshPreview,
-                                                Runnable refreshExistingTickets) {
+    private void populateExistingSpecialTickets(VBox listBox) {
         listBox.getChildren().clear();
 
-        LinkedHashMap<String, List<Ticket>> grouped = new LinkedHashMap<>();
+        List<SpecialTicketRecord> records = ticketController.getSpecialTicketRecords();
 
-        for (Ticket ticket : ticketController.getSpecialTickets()) {
-            grouped.computeIfAbsent(ticket.getTicketGroupId(), ignored -> new ArrayList<>()).add(ticket);
-        }
-
-        if (grouped.isEmpty()) {
-            Label empty = new Label("No special tickets have been generated yet.");
+        if (records.isEmpty()) {
+            Label empty = new Label("No special tickets have been saved yet.");
             empty.getStyleClass().add("card-text");
             listBox.getChildren().add(empty);
             return;
         }
 
-        for (List<Ticket> group : grouped.values()) {
-            Ticket representative = group.get(0);
-
-            int total = group.size();
-            int used = 0;
-            int remaining = 0;
-
-            for (Ticket ticket : group) {
-                if (ticket.isUsed()) {
-                    used++;
-                }
-                if (ticket.isActive() && !ticket.isUsed()) {
-                    remaining++;
-                }
-            }
-
-            boolean removed = !representative.isActive();
-            boolean soldOut = remaining == 0 && !removed;
-
-            Label typeLabel = new Label(representative.getTicketType());
-            typeLabel.getStyleClass().add("card-title");
-
-            Label scopeLabel = new Label(
-                    representative.isValidForAllEvents()
-                            ? "Valid for all events"
-                            : "Event: " + representative.getEventTitle()
-            );
-            scopeLabel.getStyleClass().add("card-text");
-
-            Label statsLabel = new Label(
-                    "Generated: " + total +
-                            "   Used: " + used +
-                            "   Remaining: " + remaining +
-                            "   Price: " + representative.getPrice()
-            );
-            statsLabel.getStyleClass().add("card-text");
-
-            String statusText = removed ? "Removed" : soldOut ? "Sold Out" : "Active";
-            Label statusBadge = new Label(statusText);
-            statusBadge.getStyleClass().add(removed || soldOut ? "status-fast" : "status-avail");
-
-            Button removeButton = new Button("Remove");
-            removeButton.getStyleClass().add("danger-btn");
-            removeButton.setDisable(removed);
-            removeButton.setOnAction(e -> {
-                ticketController.deactivateSpecialTicketGroup(representative.getTicketGroupId());
-                populateExistingSpecialTickets(listBox, refreshPreview, refreshExistingTickets);
-            });
-
-            HBox topRow = new HBox(10, typeLabel, grow(), statusBadge);
-            topRow.setAlignment(Pos.CENTER_LEFT);
-
-            HBox bottomRow = new HBox(12, statsLabel, grow(), removeButton);
-            bottomRow.setAlignment(Pos.CENTER_LEFT);
-
-            VBox card = new VBox(10, topRow, scopeLabel, statsLabel, bottomRow);
-            card.getStyleClass().add("event-card");
-            card.setPadding(new Insets(16));
-
-            listBox.getChildren().add(card);
+        for (SpecialTicketRecord record : records) {
+            listBox.getChildren().add(createSpecialTicketCard(record));
         }
     }
 
-    private Runnable refreshExistingTicketsPlaceholder() {
-        return () -> {};
+    private VBox createSpecialTicketCard(SpecialTicketRecord record) {
+        Label name = new Label(record.getSpecialTicketName());
+        name.getStyleClass().add("card-title");
+        name.setWrapText(true);
+
+        Label status = new Label(record.isActive() ? "Ready to Generate" : "Already Issued");
+        status.getStyleClass().add(record.isActive() ? "status-avail" : "status-fast");
+
+        HBox header = new HBox(12, name, grow(), status);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        Label description = new Label(safeText(record.getDescription(), "No description"));
+        description.getStyleClass().add("card-text");
+        description.setWrapText(true);
+
+        Label validFor = new Label(
+                record.isValidForAllEvents()
+                        ? "Valid for all events"
+                        : "Event: " + safeText(record.getEventName(), "No event")
+        );
+        validFor.getStyleClass().add("card-text");
+
+        Label quantity = new Label("Quantity: " + record.getQuantity());
+        quantity.getStyleClass().add("card-text");
+
+        Label price = new Label("Price: " + safeText(record.getPrice(), "Free"));
+        price.getStyleClass().add("card-text");
+
+        Label code = new Label("Template Code: " + safeText(record.getPublicCode(), "-"));
+        code.getStyleClass().add("notes-head");
+
+        Button generateButton = new Button("Generate Tickets");
+        generateButton.getStyleClass().add("primary-btn");
+        generateButton.setDisable(!record.isActive());
+        generateButton.setOnAction(e -> issueSpecialTicket(record));
+
+        Button removeButton = new Button(record.isActive() ? "Remove" : "Removed");
+        removeButton.getStyleClass().add("danger-btn");
+        removeButton.setDisable(!record.isActive());
+        removeButton.setOnAction(e -> {
+            boolean confirmed = AlertHelper.showConfirmation(
+                    "Delete Special Ticket",
+                    "Are you sure you want to remove this special ticket?"
+            );
+            if (!confirmed) {
+                return;
+            }
+
+            boolean changed = ticketController.deactivateSpecialTicketGroup(record.getPublicCode());
+            if (changed) {
+                mainView.showCoordinatorDashboard("Special Tickets");
+            } else {
+                AlertHelper.showError("Delete Failed", "The special ticket could not be removed.");
+            }
+        });
+
+        HBox actions = new HBox(10, generateButton, removeButton);
+
+        VBox card = new VBox(12, header, description, validFor, quantity, price, code, actions);
+        card.getStyleClass().add("event-card");
+        card.setPadding(new Insets(18));
+        return card;
+    }
+
+    private void issueSpecialTicket(SpecialTicketRecord record) {
+        Event selectedEvent = null;
+
+        if (!record.isValidForAllEvents()) {
+            selectedEvent = findEventByTitle(record.getEventName());
+            if (selectedEvent == null) {
+                AlertHelper.showError("Generate Failed", "The event for this special ticket could not be found.");
+                return;
+            }
+        }
+
+        List<Ticket> generatedTickets = ticketController.issueSpecialTicketDefinition(record, selectedEvent);
+        if (generatedTickets == null || generatedTickets.isEmpty()) {
+            AlertHelper.showError("Generate Failed", "No special tickets were generated.");
+            return;
+        }
+
+        String scope = record.isValidForAllEvents() ? "All events" : safeText(record.getEventName(), "Selected event");
+        showSuccess(generatedTickets, record.getSpecialTicketName(), scope);
     }
 
     private void showSuccess(List<Ticket> tickets, String ticketName, String scope) {
@@ -552,14 +526,20 @@ public class CreateSpecialTicketView {
         details.setWrapText(true);
         details.setMaxWidth(540);
 
+        Label helper = new Label("These tickets are internal redeemable vouchers and are not connected to any customer.");
+        helper.getStyleClass().add("card-text");
+        helper.setWrapText(true);
+        helper.setMaxWidth(560);
+
         Button backButton = new Button("Back to Special Tickets");
         backButton.getStyleClass().add("primary-btn");
-        backButton.setOnAction(e -> mainView.setContent(new CreateSpecialTicketView(mainView).getView()));
+        backButton.setOnAction(e -> mainView.showCoordinatorDashboard("Special Tickets"));
 
         card.getChildren().addAll(
                 title,
                 subtitle,
                 details,
+                helper,
                 new Label("First Ticket QR Code"),
                 qrView,
                 new Label("First Ticket Barcode"),
@@ -567,7 +547,6 @@ public class CreateSpecialTicketView {
                 new Separator(),
                 sectionTitle("Generated Ticket IDs"),
                 idsBox,
-                buildSpecialTicketDeliveryActions(tickets),
                 backButton
         );
 
@@ -579,13 +558,12 @@ public class CreateSpecialTicketView {
         mainView.setContent(scrollPane);
     }
 
-
     private Event findEventByTitle(String title) {
         if (title == null || title.isBlank()) {
             return null;
         }
 
-        for (Event event : eventController.getEvents()) {
+        for (Event event : eventController.getEventsForUser(mainView.getCurrentUser())) {
             if (event.getTitle().equalsIgnoreCase(title.trim())) {
                 return event;
             }
@@ -634,34 +612,37 @@ public class CreateSpecialTicketView {
         return region;
     }
 
-    private String buildEventNotes(String description, LocalDate validUntil) {
+    private String buildPreviewNotes(String description, LocalDate validUntil) {
+        if (validUntil == null) {
+            return description;
+        }
+        return description + " Valid until " + validUntil + ".";
+    }
+
+    private String mergeDescriptionAndMeta(String description, String benefit, LocalDate validUntil) {
         StringBuilder builder = new StringBuilder();
 
         if (description != null && !description.isBlank()) {
             builder.append(description.trim());
         }
 
+        if (benefit != null && !benefit.isBlank()) {
+            if (builder.length() > 0) {
+                builder.append(" Benefit: ");
+            } else {
+                builder.append("Benefit: ");
+            }
+            builder.append(benefit.trim());
+        }
+
         if (validUntil != null) {
-            if (!builder.isEmpty()) {
+            if (builder.length() > 0) {
                 builder.append(" ");
             }
             builder.append("Valid until: ").append(validUntil);
         }
 
         return builder.toString();
-    }
-
-    private String mergeNotes(String first, String second) {
-        if ((first == null || first.isBlank()) && (second == null || second.isBlank())) {
-            return "";
-        }
-        if (first == null || first.isBlank()) {
-            return second == null ? "" : second.trim();
-        }
-        if (second == null || second.isBlank()) {
-            return first.trim();
-        }
-        return first.trim() + " " + second.trim();
     }
 
     private String safeText(String value, String fallback) {
@@ -694,68 +675,4 @@ public class CreateSpecialTicketView {
     private Image bytesToImage(byte[] bytes) {
         return new Image(new ByteArrayInputStream(bytes));
     }
-
-    private HBox buildSpecialTicketDeliveryActions(List<Ticket> tickets) {
-        Button emailButton = new Button("Send Email");
-        emailButton.getStyleClass().add("primary-btn");
-        emailButton.setOnAction(e -> promptAndSendSpecialTickets(tickets));
-
-        Button printButton = new Button("Print PDF");
-        printButton.getStyleClass().add("secondary-btn");
-        printButton.setOnAction(e -> printSpecialTicketsPdf(tickets));
-
-        HBox actions = new HBox(12, emailButton, printButton);
-        actions.setAlignment(Pos.CENTER);
-        return actions;
-    }
-
-    private void promptAndSendSpecialTickets(List<Ticket> tickets) {
-        TextInputDialog dialog = new TextInputDialog();
-        dialog.setTitle("Send Tickets by Email");
-        dialog.setHeaderText(null);
-        dialog.setContentText("Recipient email:");
-
-        String recipientEmail = dialog.showAndWait().orElse("").trim();
-        if (recipientEmail.isBlank()) {
-            return;
-        }
-
-        try {
-            ticketPdfService.openTicketsPdf(tickets);
-
-            String subject = "Special ticket(s) from EASV Tickets";
-            String body = buildSpecialTicketEmailBody(tickets);
-
-            mailClientService.openDraft(recipientEmail, subject, body);
-        } catch (Exception ex) {
-            AlertHelper.showError("Email Failed", ex.getMessage());
-        }
-    }
-
-    private void printSpecialTicketsPdf(List<Ticket> tickets) {
-        try {
-            ticketPdfService.printTicketsPdf(tickets);
-        } catch (Exception ex) {
-            AlertHelper.showError("Print Failed", ex.getMessage());
-        }
-    }
-
-    private String buildSpecialTicketEmailBody(List<Ticket> tickets) {
-        Ticket firstTicket = tickets.get(0);
-
-        StringBuilder builder = new StringBuilder();
-        builder.append("Hi,\n\n");
-        builder.append("Your special ticket PDF is ready.\n");
-        builder.append("Ticket type: ").append(safeText(firstTicket.getTicketType(), "-")).append("\n");
-        builder.append("Quantity: ").append(tickets.size()).append("\n");
-        builder.append("Valid for: ")
-                .append(firstTicket.isValidForAllEvents() ? "All events" : safeText(firstTicket.getEventTitle(), "-"))
-                .append("\n\n");
-        builder.append("Please attach the opened PDF file and send this email.\n\n");
-        builder.append("Best regards,\nEASV Tickets");
-
-        return builder.toString();
-    }
-
-
 }

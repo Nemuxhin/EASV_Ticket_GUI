@@ -27,6 +27,20 @@ public class SoldTicketDAO {
 
         Customer customer = ticket.getCustomer();
 
+        String customerName;
+        String customerEmail;
+
+        if (customer != null) {
+            customerName = blankToNull(customer.getName());
+            customerEmail = blankToNull(customer.getEmail());
+        } else if (ticket.isSpecialTicket()) {
+            customerName = "Special Ticket";
+            customerEmail = "not-applicable@local";
+        } else {
+            customerName = "Unknown Customer";
+            customerEmail = "unknown@local";
+        }
+
         String sql = """
                 INSERT INTO SoldTickets (
                     TicketId,
@@ -59,8 +73,8 @@ public class SoldTicketDAO {
             statement.setString(5, blankToNull(ticket.getEventLocation()));
             statement.setString(6, blankToNull(ticket.getEventLocationGuidance()));
             statement.setString(7, blankToNull(ticket.getEventNotes()));
-            statement.setString(8, customer == null ? null : blankToNull(customer.getName()));
-            statement.setString(9, customer == null ? null : blankToNull(customer.getEmail()));
+            statement.setString(8, customerName);
+            statement.setString(9, customerEmail);
             statement.setString(10, blankToNull(ticket.getTicketType()));
             statement.setString(11, blankToNull(ticket.getTicketDescription()));
             statement.setBigDecimal(12, parsePrice(ticket.getPrice()));
@@ -111,6 +125,121 @@ public class SoldTicketDAO {
             }
         } catch (SQLException ex) {
             throw new RuntimeException("Could not load sold tickets.", ex);
+        }
+
+        return records;
+    }
+
+    public List<SoldTicketRecord> getRecentSoldTickets(int limit) {
+        ensureTableExists();
+
+        int safeLimit = Math.max(1, limit);
+
+        String sql = """
+                SELECT TOP (?)
+                    SoldTicketID,
+                    TicketId,
+                    EventName,
+                    EventStartDateTime,
+                    EventEndDateTime,
+                    EventLocation,
+                    EventLocationGuidance,
+                    EventNotes,
+                    CustomerName,
+                    CustomerEmail,
+                    TicketType,
+                    TicketDescription,
+                    Price,
+                    IsUsed,
+                    PublicCode,
+                    IsSpecialTicket,
+                    ValidForAllEvents
+                FROM SoldTickets
+                ORDER BY SoldTicketID DESC
+                """;
+
+        List<SoldTicketRecord> records = new ArrayList<>();
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setInt(1, safeLimit);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    records.add(mapRecord(resultSet));
+                }
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not load recent sold tickets.", ex);
+        }
+
+        return records;
+    }
+
+    public List<SoldTicketRecord> searchSoldTickets(String query, int limit) {
+        ensureTableExists();
+
+        String needle = query == null ? "" : query.trim();
+        if (needle.isBlank()) {
+            return getRecentSoldTickets(limit);
+        }
+
+        int safeLimit = Math.max(1, limit);
+        String likeValue = "%" + needle + "%";
+
+        String sql = """
+                SELECT TOP (?)
+                    SoldTicketID,
+                    TicketId,
+                    EventName,
+                    EventStartDateTime,
+                    EventEndDateTime,
+                    EventLocation,
+                    EventLocationGuidance,
+                    EventNotes,
+                    CustomerName,
+                    CustomerEmail,
+                    TicketType,
+                    TicketDescription,
+                    Price,
+                    IsUsed,
+                    PublicCode,
+                    IsSpecialTicket,
+                    ValidForAllEvents
+                FROM SoldTickets
+                WHERE
+                    ISNULL(TicketId, '') LIKE ?
+                    OR ISNULL(EventName, '') LIKE ?
+                    OR ISNULL(CustomerName, '') LIKE ?
+                    OR ISNULL(CustomerEmail, '') LIKE ?
+                    OR ISNULL(TicketType, '') LIKE ?
+                    OR ISNULL(TicketDescription, '') LIKE ?
+                    OR ISNULL(PublicCode, '') LIKE ?
+                ORDER BY SoldTicketID DESC
+                """;
+
+        List<SoldTicketRecord> records = new ArrayList<>();
+
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+
+            statement.setInt(1, safeLimit);
+            statement.setString(2, likeValue);
+            statement.setString(3, likeValue);
+            statement.setString(4, likeValue);
+            statement.setString(5, likeValue);
+            statement.setString(6, likeValue);
+            statement.setString(7, likeValue);
+            statement.setString(8, likeValue);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    records.add(mapRecord(resultSet));
+                }
+            }
+        } catch (SQLException ex) {
+            throw new RuntimeException("Could not search sold tickets.", ex);
         }
 
         return records;

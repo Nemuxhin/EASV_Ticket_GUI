@@ -162,6 +162,14 @@ public class TicketController {
         return ticketManager.getSoldTickets();
     }
 
+    public List<SoldTicketRecord> getRecentSoldTickets(int limit) {
+        return ticketManager.getRecentSoldTickets(limit);
+    }
+
+    public List<SoldTicketRecord> searchSoldTickets(String query, int limit) {
+        return ticketManager.searchSoldTickets(query, limit);
+    }
+
     public boolean deactivateSpecialTicketGroup(String ticketGroupId) {
         return ticketManager.deactivateSpecialTicketGroup(ticketGroupId);
     }

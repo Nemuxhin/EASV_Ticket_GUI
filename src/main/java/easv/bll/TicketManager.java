@@ -324,9 +324,23 @@ public class TicketManager {
     }
 
     public List<SoldTicketRecord> getSoldTickets() {
-        backfillSoldTicketsFromLocalStore();
-        return soldTicketDAO.getAllSoldTickets();
+        return getRecentSoldTickets(10);
     }
+
+    public List<SoldTicketRecord> getRecentSoldTickets(int limit) {
+        return soldTicketDAO.getRecentSoldTickets(limit);
+    }
+
+    public List<SoldTicketRecord> searchSoldTickets(String query, int limit) {
+        String needle = query == null ? "" : query.trim();
+
+        if (needle.isBlank()) {
+            return soldTicketDAO.getRecentSoldTickets(limit);
+        }
+
+        return soldTicketDAO.searchSoldTickets(needle, limit);
+    }
+
 
     public boolean deactivateSpecialTicketGroup(String ticketGroupId) {
         List<Ticket> ticketsInGroup = ticketDAO.findByGroupId(ticketGroupId);
