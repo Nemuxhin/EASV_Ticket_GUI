@@ -765,11 +765,16 @@ public class CoordinatorDashboardView {
     private VBox createEventCard(Event event, boolean allowDelete) {
         VBox card = new VBox(10);
         card.getStyleClass().add("event-card");
-        card.setPrefWidth(360);
+        card.setPrefWidth(Region.USE_COMPUTED_SIZE);
+        card.setMaxWidth(Double.MAX_VALUE);
+        card.setMaxHeight(Double.MAX_VALUE);
 
-        HBox top = new HBox();
+        HBox top = new HBox(12);
+        top.setAlignment(Pos.TOP_LEFT);
         Label titleLbl = new Label(displayText(event.getTitle()));
         titleLbl.getStyleClass().add("card-title");
+        titleLbl.setWrapText(true);
+        HBox.setHgrow(titleLbl, Priority.ALWAYS);
 
         String status = ticketController.getEventStatus(event);
         Label statusLbl = new Label(status);
@@ -782,11 +787,13 @@ public class CoordinatorDashboardView {
         VBox scheduleBox = new VBox(6);
         Label startLbl = new Label("\uD83D\uDD52 " + displayText(event.getStartDateTime()));
         startLbl.getStyleClass().add("card-text");
+        startLbl.setWrapText(true);
         scheduleBox.getChildren().add(startLbl);
 
         VBox locationBox = new VBox(6);
         Label locationLbl = new Label("\uD83D\uDCCD " + displayText(event.getLocation()));
         locationLbl.getStyleClass().add("card-text");
+        locationLbl.setWrapText(true);
         locationBox.getChildren().add(locationLbl);
 
         Label notesHead = new Label("Notes");
@@ -804,6 +811,12 @@ public class CoordinatorDashboardView {
         ticketTypesHead.getStyleClass().add("notes-head");
         Label ticketTypesSummary = buildTicketTypeSummaryLabel(ticketController.getTicketTypePricesForEvent(event));
 
+        Region actionSpacer = new Region();
+        VBox.setVgrow(actionSpacer, Priority.ALWAYS);
+
+        VBox actionSection = new VBox(10);
+        actionSection.setFillWidth(true);
+
         Button sellBtn = new Button("Sell Ticket");
         sellBtn.getStyleClass().add("primary-btn");
         sellBtn.setMaxWidth(Double.MAX_VALUE);
@@ -819,12 +832,7 @@ public class CoordinatorDashboardView {
         editBtn.setMaxWidth(Double.MAX_VALUE);
         editBtn.setOnAction(e -> mainView.showEditEvent(event));
 
-        card.getChildren().addAll(
-                top,
-                scheduleBox,
-                locationBox,
-                notesHead,
-                notesLbl,
+        actionSection.getChildren().addAll(
                 new Separator(),
                 priceLbl,
                 ticketTypesHead,
@@ -853,8 +861,18 @@ public class CoordinatorDashboardView {
                 mainView.showCoordinatorDashboard("Events");
             });
 
-            card.getChildren().add(deleteBtn);
+            actionSection.getChildren().add(deleteBtn);
         }
+
+        card.getChildren().addAll(
+                top,
+                scheduleBox,
+                locationBox,
+                notesHead,
+                notesLbl,
+                actionSpacer,
+                actionSection
+        );
 
         return card;
     }
@@ -1743,7 +1761,9 @@ public class CoordinatorDashboardView {
         for (Event event : events) {
             VBox card = createEventCard(event);
             GridPane.setHgrow(card, Priority.ALWAYS);
+            GridPane.setVgrow(card, Priority.ALWAYS);
             GridPane.setFillWidth(card, true);
+            GridPane.setFillHeight(card, true);
 
             grid.add(card, column, row);
 

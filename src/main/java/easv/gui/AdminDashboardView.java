@@ -468,7 +468,9 @@ public class AdminDashboardView {
         for (Event event : events) {
             VBox card = createEventCard(event);
             GridPane.setHgrow(card, Priority.ALWAYS);
+            GridPane.setVgrow(card, Priority.ALWAYS);
             GridPane.setFillWidth(card, true);
+            GridPane.setFillHeight(card, true);
 
             grid.add(card, column, row);
 
@@ -505,6 +507,7 @@ public class AdminDashboardView {
         card.getStyleClass().add("event-card");
         card.setPrefWidth(Region.USE_COMPUTED_SIZE);
         card.setMaxWidth(Double.MAX_VALUE);
+        card.setMaxHeight(Double.MAX_VALUE);
         card.setMinHeight(340);
 
         HBox top = new HBox(12);
